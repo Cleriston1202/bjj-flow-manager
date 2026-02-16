@@ -67,28 +67,30 @@ app.post('/api/checkin', async (req, res) => {
 app.post('/api/awardBelt', async (req, res) => {
   try {
     const { studentId } = req.body || {}
-app.post('/api/admin/createTestUser', async (req, res) => {
-  try {
-    const email = (req.body && req.body.email) || 'teste@bondade.local'
-    const password = (req.body && req.body.password) || '123456'
-    const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-    if (!SUPABASE_URL || !key) {
-      res.status(500).json({ error: 'Supabase admin keys not configured' })
-      return
+if (process.env.NODE_ENV !== 'production') {
+  app.post('/api/admin/createTestUser', async (req, res) => {
+    try {
+      const email = (req.body && req.body.email) || 'teste@bondade.local'
+      const password = (req.body && req.body.password) || '123456'
+      const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
+      const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+      if (!SUPABASE_URL || !key) {
+        res.status(500).json({ error: 'Supabase admin keys not configured' })
+        return
+      }
+      const { createClient } = await import('@supabase/supabase-js')
+      const supabase = createClient(SUPABASE_URL, key)
+      const { data, error } = await supabase.auth.admin.createUser({ email, password, email_confirm: true })
+      if (error && !String(error.message || '').toLowerCase().includes('already')) {
+        res.status(500).json({ error: error.message })
+        return
+      }
+      res.json({ success: true, email, password, user: data?.user || null })
+    } catch (e) {
+      res.status(500).json({ error: e.message })
     }
-    const { createClient } = await import('@supabase/supabase-js')
-    const supabase = createClient(SUPABASE_URL, key)
-    const { data, error } = await supabase.auth.admin.createUser({ email, password, email_confirm: true })
-    if (error && !String(error.message || '').toLowerCase().includes('already')) {
-      res.status(500).json({ error: error.message })
-      return
-    }
-    res.json({ success: true, email, password, user: data?.user || null })
-  } catch (e) {
-    res.status(500).json({ error: e.message })
-  }
-})
+  })
+}
 
 app.post('/api/awardBelt', async (req, res) => {
   try {
