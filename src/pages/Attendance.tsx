@@ -200,7 +200,13 @@ export default function Attendance() {
 
   const checkedInStudents = students.filter(s => checkedInIds.includes(s.id))
 
-  const academyQrValue = typeof window !== 'undefined' ? `${window.location.origin}/attendance` : 'https://example.com/attendance'
+  const appBaseUrl = ((): string => {
+    if (typeof window !== 'undefined') return window.location.origin
+    const fromEnv = (import.meta as any).env?.VITE_APP_BASE_URL as string | undefined
+    return fromEnv || 'https://example.com'
+  })()
+
+  const academyQrValue = `${appBaseUrl}/attendance`
 
   return (
     <div className="max-w-6xl mx-auto">

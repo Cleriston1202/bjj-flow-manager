@@ -44,11 +44,13 @@ export default function AccountSettings() {
     }
   }
 
-  const checkinUrl = tenant
-    ? (typeof window !== 'undefined'
-        ? `${window.location.origin}/checkin/${tenant.organizationId}`
-        : `https://app.seusaas.com/checkin/${tenant.organizationId}`)
-    : ''
+  const appBaseUrl = ((): string => {
+    if (typeof window !== 'undefined') return window.location.origin
+    const fromEnv = (import.meta as any).env?.VITE_APP_BASE_URL as string | undefined
+    return fromEnv || 'https://app.seusaas.com'
+  })()
+
+  const checkinUrl = tenant ? `${appBaseUrl}/checkin/${tenant.organizationId}` : ''
 
   return (
     <div className="max-w-3xl mx-auto">

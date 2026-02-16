@@ -1,5 +1,6 @@
 const express = require('express')
 const cors = require('cors')
+const path = require('path')
 const { Pool } = require('pg')
 const { randomUUID } = require('crypto')
 require('dotenv').config()
@@ -263,7 +264,10 @@ app.get('/api/qr/sent', async (req, res) => {
     const r = await pool.query('SELECT student_id FROM qr_notifications')
     res.json({ sent: r.rows.map(x => x.student_id) })
   } catch (e) {
-    res.status(500).json({ error: e.message })
+    console.error('Erro em /api/qr/sent:', e.message)
+    // Falha no log de envios de QR não deve quebrar o painel.
+    // Devolvemos lista vazia para o frontend seguir funcionando.
+    res.json({ sent: [] })
   }
 })
 
@@ -311,6 +315,20 @@ app.post('/api/payments/upsert', async (req, res) => {
     res.status(500).json({ error: e.message })
   }
 })
+
+// Em produção, servir o frontend buildado (Vite) a partir de "dist"
+if (process.env.NODE_ENV === 'production') {
+  const distPath = path.join(__dirname, '..', 'dist')
+  app.use(express.static(distPath))
+
+  app.get('*', (req, res) => {
+    if (req.path.startsWith('/api/')) {
+      res.status(404).json({ error: 'Not found' })
+      return
+    }
+    res.sendFile(path.join(distPath, 'index.html'))
+  })
+}
 
 const port = process.env.PORT || 3001
 app.listen(port, () => {

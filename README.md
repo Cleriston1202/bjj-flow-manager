@@ -37,13 +37,23 @@ Frontend scaffold adicionado:
 - `src/lib/beltLogic.ts` — já incluso
 - Tailwind config e estilos
 
-Para rodar localmente:
+Para rodar localmente (dev):
 
 ```bash
 npm install
 # criar .env com as variáveis do Supabase (veja .env.example)
-npm run dev
+npm run server   # sobe API em http://localhost:3001
+npm run dev      # sobe frontend Vite em http://localhost:5173 (proxy /api -> 3001)
 ```
+
+Build e produção (Node + Express servindo o frontend):
+
+```bash
+npm run build            # gera o frontend em dist/
+NODE_ENV=production npm run server
+```
+
+Em produção, o servidor Express em server/index.js passa a servir os arquivos estáticos de dist/ e as rotas /api continuam funcionando normalmente.
 
 Quer que eu implemente agora:
 
