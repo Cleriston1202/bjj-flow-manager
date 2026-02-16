@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Pencil, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../lib/AuthContext'
 import StudentForm, { Student } from '../components/StudentForm'
@@ -93,9 +94,21 @@ export default function Students() {
                 <div className="text-sm text-gray-600">Faixa: {s.current_belt || 'Branca'} • Grau: {s.current_degree ?? 0}</div>
               </div>
             </div>
-            <div className="space-x-2">
-              <button onClick={()=>handleEdit(s)} className="text-primary">Editar</button>
-              <button onClick={()=>handleDelete(s.id)} className="text-red-600">Remover</button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={()=>handleEdit(s)}
+                className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-blue-100 text-blue-600 hover:bg-blue-600 hover:text-white transition-colors"
+                aria-label="Editar aluno"
+              >
+                <Pencil size={16} />
+              </button>
+              <button
+                onClick={()=>handleDelete(s.id)}
+                className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-red-100 text-red-600 hover:bg-red-600 hover:text-white transition-colors"
+                aria-label="Remover aluno"
+              >
+                <Trash2 size={16} />
+              </button>
             </div>
           </div>
         ))}
