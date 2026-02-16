@@ -20,6 +20,9 @@ export interface ClubConfig {
   alertThresholdPercent: number; // e.g. 0.9 = alert at 90% of required classes
 }
 
+// Regra base: aulas necessárias para subir 1 grau
+export const AULAS_POR_GRAU = 30;
+
 const BELT_ORDER: Belt[] = ['Branca', 'Azul', 'Roxa', 'Marrom', 'Preta'];
 
 function nextBelt(belt: Belt): Belt | null {
@@ -107,11 +110,11 @@ export function filterAttendancesSince(dateISO: string, attendances: AttendanceR
 // Example defaults to be used when instantiating the config
 export const DEFAULT_CLUB_CONFIG: ClubConfig = {
   classesPerDegree: {
-    Branca: 20,
-    Azul: 40,
-    Roxa: 60,
-    Marrom: 80,
-    Preta: 120,
+    Branca: AULAS_POR_GRAU,
+    Azul: AULAS_POR_GRAU,
+    Roxa: AULAS_POR_GRAU,
+    Marrom: AULAS_POR_GRAU,
+    Preta: AULAS_POR_GRAU,
   },
   monthsPerDegree: {
     Branca: 6,

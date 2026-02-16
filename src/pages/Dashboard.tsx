@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../lib/AuthContext'
-import { DEFAULT_CLUB_CONFIG, evaluateBeltProgress, filterAttendancesSince } from '../lib/beltLogic'
+import { DEFAULT_CLUB_CONFIG, evaluateBeltProgress } from '../lib/beltLogic'
 import { Users, AlertCircle, Award, UserCheck } from 'lucide-react'
 
 export default function Dashboard() {
@@ -9,8 +9,19 @@ export default function Dashboard() {
   const [lateCount, setLateCount] = useState<number | null>(null)
   const [readyCount, setReadyCount] = useState<number | null>(null)
   const [alertCount, setAlertCount] = useState<number | null>(null)
+  const [readyStudents, setReadyStudents] = useState<any[]>([])
+  const [promotingId, setPromotingId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const { tenant } = useAuth()
+
+  function beltColorClass(belt: string | null | undefined) {
+    const b = (belt || 'Branca').toLowerCase()
+    if (b.includes('azul')) return 'bg-blue-100 text-blue-800 border-blue-400'
+    if (b.includes('roxa')) return 'bg-purple-100 text-purple-800 border-purple-400'
+    if (b.includes('marrom')) return 'bg-amber-100 text-amber-800 border-amber-500'
+    if (b.includes('preta')) return 'bg-black text-white border-gray-700'
+    return 'bg-gray-100 text-gray-800 border-gray-300'
+  }
 
   const load = useCallback(async () => {
       setLoading(true)
@@ -83,22 +94,50 @@ export default function Dashboard() {
 
       let ready = 0
       let alert = 0
+      const readyList: any[] = []
       for (const s of studentsList) {
         const since = s.belt_since || s.created_at || new Date(0).toISOString()
         const studentAttendances = (attendMap[s.id] || []).filter((a: any) => new Date(a.attended_at).getTime() >= new Date(since).getTime())
         const progress = evaluateBeltProgress({ id: s.id, current_belt: s.current_belt || 'Branca', current_degree: s.current_degree || 0, belt_since: since }, studentAttendances, DEFAULT_CLUB_CONFIG)
-        if (progress.readyForDegree || progress.readyForBeltPromotion) ready++
+        if (progress.readyForDegree || progress.readyForBeltPromotion) {
+          ready++
+          readyList.push({ student: s, progress })
+        }
         if (progress.alert) alert++
       }
 
       setReadyCount(ready)
       setAlertCount(alert)
+      setReadyStudents(readyList)
       setLoading(false)
   }, [tenant])
 
   useEffect(() => {
     if (tenant) load()
   }, [load, tenant])
+
+  async function handlePromote(studentId: string, studentName: string) {
+    if (!window.confirm(`Confirmar próxima graduação para ${studentName}?`)) return
+    try {
+      setPromotingId(studentId)
+      const res = await fetch('/api/awardBelt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId }),
+      })
+      const json = await res.json().catch(() => null)
+      if (!res.ok) {
+        const msg = (json && (json.error || json.message)) || 'Erro ao promover aluno.'
+        alert(msg)
+      } else {
+        await load()
+      }
+    } catch (e: any) {
+      alert(e?.message || 'Erro ao promover aluno.')
+    } finally {
+      setPromotingId(null)
+    }
+  }
 
   return (
     <div className="max-w-5xl mx-auto">
@@ -146,6 +185,80 @@ export default function Dashboard() {
             <span className="font-medium text-green-900">Ver presenças</span>
           </a>
         </div>
+      </section>
+
+      <section className="mt-10">
+        <h3 className="text-xl font-semibold mb-2 text-gray-800">Radar de Graduação</h3>
+        <p className="text-sm text-gray-600 mb-4">
+          Alunos que já atingiram a meta de aulas para o próximo grau ou estão prontos para trocar de faixa.
+        </p>
+
+        {readyStudents.length === 0 && (
+          <div className="p-4 border rounded-lg bg-white text-sm text-gray-500">
+            Nenhum aluno atingiu ainda 100% da meta para o próximo grau.
+          </div>
+        )}
+
+        {readyStudents.length > 0 && (
+          <div className="space-y-3">
+            {readyStudents.map(({ student, progress }) => {
+              const percent = Math.min(
+                100,
+                Math.round(
+                  (progress.attendedSinceBelt / Math.max(1, progress.requiredForNextDegree)) * 100,
+                ),
+              )
+              const beltClass = beltColorClass(student.current_belt)
+              return (
+                <div
+                  key={student.id}
+                  className="p-4 border rounded-lg bg-white flex flex-col md:flex-row md:items-center md:justify-between gap-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`px-2 py-1 rounded-full text-xs font-medium border ${beltClass}`}
+                    >
+                      {student.current_belt || 'Branca'} • Grau {student.current_degree ?? 0}
+                    </div>
+                    <div>
+                      <div className="font-semibold text-sm">{student.full_name}</div>
+                      <div className="text-xs text-gray-500">
+                        {progress.readyForBeltPromotion
+                          ? 'Pronto para trocar de faixa.'
+                          : 'Pronto para o próximo grau.'}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex-1 md:max-w-sm">
+                    <div className="flex justify-between text-xs text-gray-500 mb-1">
+                      <span>
+                        Aulas desde a faixa atual: {progress.attendedSinceBelt}/{
+                          progress.requiredForNextDegree
+                        }
+                      </span>
+                      <span className="font-semibold text-gray-700">{percent}%</span>
+                    </div>
+                    <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden mb-2">
+                      <div
+                        className="h-full bg-emerald-500"
+                        style={{ width: `${percent}%` }}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-end md:justify-center min-w-[140px]">
+                    <button
+                      onClick={() => handlePromote(student.id, student.full_name)}
+                      disabled={promotingId === student.id}
+                      className="px-3 py-2 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-sm disabled:opacity-60"
+                    >
+                      {promotingId === student.id ? 'Promovendo...' : 'Promover'}
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </section>
     </div>
   )
