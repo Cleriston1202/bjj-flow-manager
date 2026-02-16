@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../lib/AuthContext'
 import { QrReader } from 'react-qr-reader'
+import { DEFAULT_CLUB_CONFIG, evaluateBeltProgress } from '../lib/beltLogic'
 
 function beltBorderColor(belt: string | null | undefined) {
   const b = (belt || 'Branca').toLowerCase()
@@ -38,6 +39,8 @@ function computePaymentStatus(payment: any, today = new Date()) {
   if (diffDays <= 5) return 'late'
   return 'delinquent'
 }
+
+const MIN_CHECKINS_30D = 8
 
 export default function Attendance() {
   const [search, setSearch] = useState('')
@@ -127,6 +130,25 @@ export default function Attendance() {
         return
       }
 
+      // evitar contar mais de um crédito de aula por dia
+      const today = new Date()
+      const pad = (n: number) => String(n).padStart(2, '0')
+      const dayStr = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`
+      const { count: todayCount, error: todayErr } = await supabase
+        .from('attendances')
+        .select('id', { count: 'exact', head: true })
+        .eq('student_id', studentId)
+        .eq('organization_id', tenant.organizationId)
+        .gte('attended_at', `${dayStr}T00:00:00`)
+        .lte('attended_at', `${dayStr}T23:59:59`)
+
+      if (!todayErr && typeof todayCount === 'number' && todayCount > 0) {
+        setMessage('Presença de hoje já registrada. Não será contado crédito extra de aula.')
+        setMessageType('warning')
+        if (source === 'scan') setScanFeedback({ status: 'warning', name: student.full_name })
+        return
+      }
+
       // registrar presença
       const attendanceRow: any = { student_id: studentId, organization_id: tenant.organizationId }
       if (sessionId) attendanceRow.session_id = sessionId
@@ -141,23 +163,82 @@ export default function Attendance() {
         return
       }
 
-      // incrementar contador de aulas do aluno
-      const currentTotal = student.total_classes ?? 0
-      const { error: updateError } = await supabase
-        .from('students')
-        .update({ total_classes: currentTotal + 1 })
-        .eq('id', studentId)
+      // recarregar presenças para calcular progresso de graduação
+      const sinceIso = student.belt_since || student.created_at || new Date(0).toISOString()
+      const { data: attAll, error: attErr } = await supabase
+        .from('attendances')
+        .select('attended_at')
+        .eq('student_id', studentId)
+        .eq('organization_id', tenant.organizationId)
+        .gte('attended_at', sinceIso)
 
-      if (updateError) {
-        console.error('Erro ao atualizar total_classes:', updateError.message)
+      let progressMessage = ''
+      let prepared = false
+      if (!attErr && attAll) {
+        const attendancesSinceBelt = (attAll as any[]).map((a: any) => ({ attended_at: a.attended_at }))
+        const progress = evaluateBeltProgress(
+          {
+            id: student.id,
+            current_belt: (student.current_belt || 'Branca') as any,
+            current_degree: student.current_degree || 0,
+            belt_since: sinceIso,
+          },
+          attendancesSinceBelt,
+          DEFAULT_CLUB_CONFIG,
+        )
+
+        const percent = Math.min(
+          100,
+          Math.round(
+            (progress.attendedSinceBelt / Math.max(1, progress.requiredForNextDegree)) * 100,
+          ),
+        )
+
+        // frequência dos últimos 30 dias
+        const now = new Date()
+        const last30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+        const recentCount = attendancesSinceBelt.filter((a) => new Date(a.attended_at).getTime() >= last30.getTime()).length
+        prepared = (progress.readyForDegree || progress.readyForBeltPromotion) && recentCount >= MIN_CHECKINS_30D
+
+        const nextDegreeLabel = progress.readyForBeltPromotion
+          ? 'próxima faixa'
+          : `${(student.current_degree || 0) + 1}º grau`
+
+        progressMessage = `Aula ${progress.attendedSinceBelt}/${progress.requiredForNextDegree} para o ${nextDegreeLabel} (${percent}%).`
+
+        // atualizar contadores de progresso no registro do aluno
+        const currentTotal = student.total_classes ?? 0
+        const { error: updateError } = await supabase
+          .from('students')
+          .update({
+            total_classes: currentTotal + 1,
+            current_belt_lessons: progress.attendedSinceBelt,
+          })
+          .eq('id', studentId)
+
+        if (updateError) {
+          console.error('Erro ao atualizar progresso do aluno:', updateError.message)
+        }
       }
 
       if (status && status !== 'paid') {
-        setMessage('Check-in realizado. Há pendências financeiras a regularizar.')
+        setMessage(
+          (prepared ? '🎯 Meta atingida! Aluno pronto para avaliação. ' : '') +
+          'Check-in realizado. Há pendências financeiras a regularizar.' +
+          (progressMessage ? ` ${progressMessage}` : ''),
+        )
         setMessageType('warning')
         if (source === 'scan') setScanFeedback({ status: 'warning', name: student.full_name })
+      } else if (prepared) {
+        setMessage(
+          `🎯 Meta atingida! Aluno pronto para avaliação. ${progressMessage || ''}`,
+        )
+        setMessageType('success')
+        if (source === 'scan') setScanFeedback({ status: 'ok', name: student.full_name })
       } else {
-        setMessage('Presença registrada com sucesso.')
+        setMessage(
+          `Presença registrada com sucesso.${progressMessage ? ` ${progressMessage}` : ''}`,
+        )
         setMessageType('success')
         if (source === 'scan') setScanFeedback({ status: 'ok', name: student.full_name })
       }

@@ -96,6 +96,15 @@ CREATE TABLE IF NOT EXISTS settings (
 CREATE INDEX IF NOT EXISTS idx_attendances_student ON attendances (organization_id, student_id, attended_at);
 CREATE INDEX IF NOT EXISTS idx_payments_student ON payments (organization_id, student_id);
 
+-- Additional progression fields (idempotent):
+ALTER TABLE students
+  ADD COLUMN IF NOT EXISTS current_belt_lessons int DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS date_last_promotion timestamptz DEFAULT now();
+
+ALTER TABLE attendances
+  ADD COLUMN IF NOT EXISTS technical_note int,
+  ADD COLUMN IF NOT EXISTS technical_observation text;
+
 -- ---------------------------------------------------------------------------
 -- Row Level Security (RLS) for multi-tenant isolation
 -- NOTE: After applying this schema in Supabase, run the equivalent commands
