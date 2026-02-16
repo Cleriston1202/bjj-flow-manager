@@ -130,27 +130,33 @@ export default function Attendance() {
         return
       }
 
-      // evitar contar mais de um crédito de aula por dia
-      const today = new Date()
-      const pad = (n: number) => String(n).padStart(2, '0')
-      const dayStr = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`
-      const { count: todayCount, error: todayErr } = await supabase
+      // evitar contar mais de um crédito de aula em janela de 2h
+      const now = new Date()
+      const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000)
+      const { data: lastAtt, error: lastErr } = await supabase
         .from('attendances')
-        .select('id', { count: 'exact', head: true })
+        .select('attended_at')
         .eq('student_id', studentId)
         .eq('organization_id', tenant.organizationId)
-        .gte('attended_at', `${dayStr}T00:00:00`)
-        .lte('attended_at', `${dayStr}T23:59:59`)
+        .eq('valid', true)
+        .gte('attended_at', twoHoursAgo.toISOString())
+        .order('attended_at', { ascending: false })
+        .limit(1)
 
-      if (!todayErr && typeof todayCount === 'number' && todayCount > 0) {
-        setMessage('Presença de hoje já registrada. Não será contado crédito extra de aula.')
+      if (!lastErr && lastAtt && lastAtt.length > 0) {
+        setMessage('Já existe um check-in recente para este aluno nas últimas 2 horas. Não será contado crédito extra de aula.')
         setMessageType('warning')
         if (source === 'scan') setScanFeedback({ status: 'warning', name: student.full_name })
         return
       }
 
       // registrar presença
-      const attendanceRow: any = { student_id: studentId, organization_id: tenant.organizationId }
+      const attendanceRow: any = {
+        student_id: studentId,
+        organization_id: tenant.organizationId,
+        belt_at_time: student.current_belt || 'Branca',
+        source: source === 'scan' ? 'qr' : 'manual',
+      }
       if (sessionId) attendanceRow.session_id = sessionId
 
       const { error: attendanceError } = await supabase
@@ -170,6 +176,7 @@ export default function Attendance() {
         .select('attended_at')
         .eq('student_id', studentId)
         .eq('organization_id', tenant.organizationId)
+        .eq('valid', true)
         .gte('attended_at', sinceIso)
 
       let progressMessage = ''

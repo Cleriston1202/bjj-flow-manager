@@ -103,7 +103,23 @@ ALTER TABLE students
 
 ALTER TABLE attendances
   ADD COLUMN IF NOT EXISTS technical_note int,
-  ADD COLUMN IF NOT EXISTS technical_observation text;
+  ADD COLUMN IF NOT EXISTS technical_observation text,
+  ADD COLUMN IF NOT EXISTS belt_at_time text,
+  ADD COLUMN IF NOT EXISTS source text,
+  ADD COLUMN IF NOT EXISTS valid boolean DEFAULT true;
+
+-- Promotion logs for analytics
+CREATE TABLE IF NOT EXISTS logs_promocoes (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  student_id uuid REFERENCES students(id) ON DELETE CASCADE,
+  from_belt text,
+  from_degree int,
+  to_belt text,
+  to_degree int,
+  total_lessons_in_journey int,
+  promoted_at timestamptz DEFAULT now()
+);
 
 -- ---------------------------------------------------------------------------
 -- Row Level Security (RLS) for multi-tenant isolation

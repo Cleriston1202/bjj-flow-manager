@@ -66,14 +66,22 @@ export default function QRExport() {
               <QRCode value={s.id} size={128} />
             </div>
             <div className="flex flex-col sm:flex-row items-stretch gap-2 w-full mt-1">
+              {(() => {
+                const appBase = typeof window !== 'undefined' ? window.location.origin : ''
+                const qrPageUrl = `${appBase}/meu-qr/${s.id}`
+                const digits = String((s.contact?.phone)||'').replace(/\D+/g,'')
+                const msg = `Seu link do QR para check-in: ${qrPageUrl}`
+                return (
               <a
-                href={`https://wa.me/55${String((s.contact?.phone)||'').replace(/\D+/g,'')}?text=${encodeURIComponent(`Seu QR para check-in: ${s.id}`)}`}
+                href={`https://wa.me/55${digits}?text=${encodeURIComponent(msg)}`}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex flex-1 items-center justify-center gap-2 px-3 py-2 rounded-md bg-green-600 text-white hover:bg-green-700 text-xs sm:text-sm"
               >
                 <MessageCircle size={16} /> WhatsApp
               </a>
+                )
+              })()}
               <button
                 disabled={sendingId === s.id}
                 onClick={async ()=>{
@@ -95,9 +103,11 @@ export default function QRExport() {
                     })
                     if (ok.status === 200) {
                       setSent(prev => Array.from(new Set([...prev, s.id])))
-                      const digits = String((s.contact?.phone)||'').replace(/\D+/g,'')
-                      const msg = `Seu QR para check-in: ${qurl}`
-                      window.open(`https://wa.me/55${digits}?text=${encodeURIComponent(msg)}`, '_blank')
+                      const appBase = typeof window !== 'undefined' ? window.location.origin : ''
+                      const qrPageUrl = `${appBase}/meu-qr/${s.id}`
+                      const digits2 = String((s.contact?.phone)||'').replace(/\D+/g,'')
+                      const msg2 = `Seu link do QR para check-in: ${qrPageUrl}`
+                      window.open(`https://wa.me/55${digits2}?text=${encodeURIComponent(msg2)}`, '_blank')
                     }
                   } finally {
                     setSendingId(null)

@@ -13,12 +13,41 @@ import Signup from './pages/Signup'
 import Finance from './pages/Finance'
 import AccountSettings from './pages/AccountSettings'
 import { useAuth } from './lib/AuthContext'
+import { supabase, isSupabaseConfigured } from './lib/supabaseClient'
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { user, loading } = useAuth()
   const location = useLocation()
+  const [expired, setExpired] = React.useState(false)
+
+  React.useEffect(() => {
+    if (loading) return
+    if (!user) return
+    try {
+      const MAX_AGE_MS = 24 * 60 * 60 * 1000 // 1 dia
+      const key = 'session_started_at'
+      const now = Date.now()
+      if (typeof window === 'undefined') return
+      const stored = window.localStorage.getItem(key)
+      if (!stored) {
+        window.localStorage.setItem(key, String(now))
+        return
+      }
+      const startedAt = parseInt(stored, 10)
+      if (!Number.isNaN(startedAt) && now - startedAt > MAX_AGE_MS) {
+        setExpired(true)
+        window.localStorage.removeItem(key)
+        if (isSupabaseConfigured && (supabase as any).auth?.signOut) {
+          ;(supabase as any).auth.signOut()
+        }
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, [user, loading])
+
   if (loading) return <div className="p-4">Carregando...</div>
-  if (!user) return <Navigate to="/login" state={{ from: location }} replace />
+  if (!user || expired) return <Navigate to="/login" state={{ from: location }} replace />
   return children
 }
 
