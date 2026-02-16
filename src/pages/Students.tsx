@@ -10,25 +10,33 @@ export default function Students() {
   const [query, setQuery] = useState('')
   const [editing, setEditing] = useState<Student | null>(null)
   const [showForm, setShowForm] = useState(false)
+  const [page, setPage] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
   const { tenant } = useAuth()
 
-  async function fetchStudents() {
+  const PAGE_SIZE = 20
+
+  async function fetchStudents(pageToLoad = 1) {
     if (!tenant) return
     setLoading(true)
-    const { data, error } = await supabase
+    const from = (pageToLoad - 1) * PAGE_SIZE
+    const to = from + PAGE_SIZE - 1
+    const { data, error, count } = await supabase
       .from('students')
-      .select('*')
+      .select('*', { count: 'exact', head: false })
       .eq('organization_id', tenant.organizationId)
       .order('full_name')
+      .range(from, to)
     if (error) {
       console.error(error)
     } else {
-      setStudents(data as Student[])
+      setStudents((data || []) as Student[])
+      if (typeof count === 'number') setTotalCount(count)
     }
     setLoading(false)
   }
 
-  useEffect(()=>{ if (tenant) fetchStudents() }, [tenant])
+  useEffect(()=>{ if (tenant) fetchStudents(page) }, [tenant, page])
 
   function handleNew() {
     setEditing(null)
@@ -45,16 +53,17 @@ export default function Students() {
     if (!confirm('Remover aluno?')) return
     const { error } = await supabase.from('students').delete().eq('id', id)
     if (error) return alert('Erro: ' + error.message)
-    setStudents(students.filter(s => s.id !== id))
+    fetchStudents(page)
   }
 
   function handleSaved(saved: Student) {
     // refresh list simply
     setShowForm(false)
-    fetchStudents()
+    fetchStudents(page)
   }
 
   const filtered = students.filter(s => s.full_name.toLowerCase().includes(query.toLowerCase()))
+  const totalPages = totalCount > 0 ? Math.ceil(totalCount / PAGE_SIZE) : 1
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -92,6 +101,28 @@ export default function Students() {
         ))}
 
         {!loading && filtered.length === 0 && <div className="p-3 border rounded">Nenhum aluno encontrado.</div>}
+      </div>
+
+      <div className="mt-4 flex items-center justify-between text-sm">
+        <div>
+          Página {page} de {totalPages}
+        </div>
+        <div className="space-x-2">
+          <button
+            disabled={page <= 1}
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            className="px-3 py-1 border rounded disabled:opacity-50"
+          >
+            Anterior
+          </button>
+          <button
+            disabled={page >= totalPages}
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            className="px-3 py-1 border rounded disabled:opacity-50"
+          >
+            Próxima
+          </button>
+        </div>
       </div>
     </div>
   )
