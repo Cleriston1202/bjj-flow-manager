@@ -1,0 +1,36 @@
+{
+  "name": "bjj-flow-manager",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "server": "node server/index.js"
+  },
+  "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-dropdown-menu": "^2.1.16",
+    "@shadcn/ui": "^0.0.4",
+    "@supabase/supabase-js": "^2.29.0",
+    "@types/react-router-dom": "^5.3.3",
+    "clsx": "^1.2.1",
+    "lucide-react": "^0.257.0",
+    "qrcode": "^1.5.3",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-qr-code": "^2.0.15",
+    "react-qr-reader": "^3.0.0-beta-1",
+    "react-router-dom": "^7.13.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^4.0.0",
+    "autoprefixer": "^10.4.13",
+    "postcss": "^8.4.21",
+    "tailwindcss": "^3.4.7",
+    "typescript": "^5.9.3",
+    "vite": "^5.0.0"
+  }
+}

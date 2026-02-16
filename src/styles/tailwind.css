@@ -1,0 +1,11 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+  height: 100%;
+}
+
+.brand-header {
+  background: linear-gradient(90deg, #0A0A0A 0%, #0b3d91 100%);
+}
