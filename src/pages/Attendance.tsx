@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../lib/AuthContext'
-import QrReader from 'react-qr-reader'
+import { QrReader } from 'react-qr-reader'
 
 function beltBorderColor(belt: string | null | undefined) {
   const b = (belt || 'Branca').toLowerCase()
@@ -48,6 +48,7 @@ export default function Attendance() {
   const [checkedInIds, setCheckedInIds] = useState<string[]>([])
   const [sessionId, setSessionId] = useState(() => createSessionId())
   const [scanFeedback, setScanFeedback] = useState<{ status: 'ok' | 'warning' | 'blocked'; name: string } | null>(null)
+  const [qrEnabled, setQrEnabled] = useState(false)
   const lastScanRef = useRef<{ id: string; ts: number } | null>(null)
   const { tenant } = useAuth()
 
@@ -208,13 +209,36 @@ export default function Attendance() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* Totem / QR */}
         <div className="border rounded-lg p-4 flex flex-col gap-4">
-          <h3 className="font-semibold mb-1">Modo Totem (QR Code)</h3>
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="font-semibold">Modo Totem (QR Code)</h3>
+            <button
+              type="button"
+              onClick={() => setQrEnabled(v => !v)}
+              className="text-xs px-3 py-1 rounded border border-gray-300 hover:bg-gray-50"
+            >
+              {qrEnabled ? 'Desligar câmera' : 'Ligar câmera'}
+            </button>
+          </div>
           <p className="text-xs text-gray-500 mb-2">O aluno aproxima o QR do cartão ou celular na câmera para registrar o check-in desta aula.</p>
           <div className="border rounded overflow-hidden bg-black/80 text-white flex items-center justify-center min-h-[220px]">
-            <QrReader
-              onError={handleScanError}
-              onScan={handleScan}
-            />
+            {qrEnabled ? (
+              <QrReader
+                constraints={{ facingMode: 'environment' }}
+                onResult={(result: any, error: any) => {
+                  if (result) {
+                    const text = (result?.getText?.() ?? result?.text ?? '').toString()
+                    handleScan(text || null)
+                  }
+                  if (error) {
+                    handleScanError(error)
+                  }
+                }}
+              />
+            ) : (
+              <div className="text-xs text-gray-300 p-4 text-center">
+                Clique em "Ligar câmera" para iniciar o leitor de QR Code.
+              </div>
+            )}
           </div>
           {scanFeedback && (
             <div className={`mt-3 p-3 rounded-lg text-center text-sm ${
