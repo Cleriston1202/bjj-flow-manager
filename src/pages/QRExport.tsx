@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { supabase, handleSupabaseAuthError } from '../lib/supabaseClient'
+import { getBaseUrl } from '../lib/baseUrl'
 import { useAuth } from '../lib/AuthContext'
 import QRCode from 'react-qr-code'
 import QRCodeLib from 'qrcode'
@@ -74,7 +75,7 @@ export default function QRExport() {
             </div>
             <div className="flex flex-col sm:flex-row items-stretch gap-2 w-full mt-1">
               {(() => {
-                const appBase = typeof window !== 'undefined' ? window.location.origin : ''
+                const appBase = getBaseUrl()
                 const qrPageUrl = `${appBase}/meu-qr/${s.id}`
                 const digits = String((s.contact?.phone)||'').replace(/\D+/g,'')
                 const msg = `Seu link do QR para check-in: ${qrPageUrl}`
@@ -115,7 +116,7 @@ export default function QRExport() {
                     })
                     if (ok.status === 200) {
                       setSent(prev => Array.from(new Set([...prev, s.id])))
-                      const appBase = typeof window !== 'undefined' ? window.location.origin : ''
+                      const appBase = getBaseUrl()
                       const qrPageUrl = `${appBase}/meu-qr/${s.id}`
                       const digits2 = String((s.contact?.phone)||'').replace(/\D+/g,'')
                       const msg2 = `Seu link do QR para check-in: ${qrPageUrl}`

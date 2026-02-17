@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { supabase, handleSupabaseAuthError } from '../lib/supabaseClient'
+import { getBaseUrl } from '../lib/baseUrl'
 import { useAuth } from '../lib/AuthContext'
 import { Upload, Save } from 'lucide-react'
 
@@ -53,19 +54,7 @@ export default function AccountSettings() {
     }
   }
 
-  const appBaseUrl = ((): string => {
-    if (typeof window !== 'undefined') return window.location.origin
-    const fromEnv = (() => {
-      const nodeProcess = (globalThis as any).process as { env?: Record<string, string | undefined> } | undefined
-      if (nodeProcess?.env) {
-        return nodeProcess.env.NEXT_PUBLIC_APP_BASE_URL || nodeProcess.env.VITE_APP_BASE_URL
-      }
-      return undefined
-    })()
-    return fromEnv || 'https://app.seusaas.com'
-  })()
-
-  const checkinUrl = tenant ? `${appBaseUrl}/checkin/${tenant.organizationId}` : ''
+  const checkinUrl = tenant ? `${getBaseUrl()}/checkin/${tenant.organizationId}` : ''
 
   return (
     <div className="max-w-3xl mx-auto">

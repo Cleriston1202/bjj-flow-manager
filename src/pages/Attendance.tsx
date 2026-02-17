@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase, handleSupabaseAuthError } from '../lib/supabaseClient'
 import { useAuth } from '../lib/AuthContext'
+import { getBaseUrl } from '../lib/baseUrl'
 import { QrReader } from 'react-qr-reader'
 import { DEFAULT_CLUB_CONFIG, evaluateBeltProgress } from '../lib/beltLogic'
 
@@ -319,19 +320,7 @@ export default function Attendance() {
 
   const checkedInStudents = students.filter(s => checkedInIds.includes(s.id))
 
-  const appBaseUrl = ((): string => {
-    if (typeof window !== 'undefined') return window.location.origin
-    const fromEnv = (() => {
-      const nodeProcess = (globalThis as any).process as { env?: Record<string, string | undefined> } | undefined
-      if (nodeProcess?.env) {
-        return nodeProcess.env.NEXT_PUBLIC_APP_BASE_URL || nodeProcess.env.VITE_APP_BASE_URL
-      }
-      return undefined
-    })()
-    return fromEnv || 'https://example.com'
-  })()
-
-  const academyQrValue = `${appBaseUrl}/attendance`
+  const academyQrValue = `${getBaseUrl()}/attendance`
 
   return (
     <div className="max-w-6xl mx-auto">
