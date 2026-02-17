@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { supabase } from '../lib/supabaseClient'
+import { supabase, handleSupabaseAuthError } from '../lib/supabaseClient'
 import { useAuth } from '../lib/AuthContext'
 import { DEFAULT_CLUB_CONFIG, evaluateBeltProgress } from '../lib/beltLogic'
 import { Users, AlertCircle, Award, UserCheck } from 'lucide-react'
@@ -30,18 +30,41 @@ export default function Dashboard() {
         return
       }
       // fetch students, attendances and payments apenas da organização atual
-      const { data: students } = await supabase
+      const { data: students, error: studentsError } = await supabase
         .from('students')
         .select('*')
         .eq('organization_id', tenant.organizationId)
-      const { data: attendances } = await supabase
+      if (studentsError) {
+        if (!handleSupabaseAuthError(studentsError)) {
+          console.error('Erro ao carregar alunos para o dashboard', studentsError)
+        }
+        setLoading(false)
+        return
+      }
+
+      const { data: attendances, error: attendancesError } = await supabase
         .from('attendances')
         .select('*')
         .eq('organization_id', tenant.organizationId)
-      const { data: payments } = await supabase
+      if (attendancesError) {
+        if (!handleSupabaseAuthError(attendancesError)) {
+          console.error('Erro ao carregar presenças para o dashboard', attendancesError)
+        }
+        setLoading(false)
+        return
+      }
+
+      const { data: payments, error: paymentsError } = await supabase
         .from('payments')
         .select('*')
         .eq('organization_id', tenant.organizationId)
+      if (paymentsError) {
+        if (!handleSupabaseAuthError(paymentsError)) {
+          console.error('Erro ao carregar pagamentos para o dashboard', paymentsError)
+        }
+        setLoading(false)
+        return
+      }
 
       const studentsList = students || []
       const attendList = attendances || []

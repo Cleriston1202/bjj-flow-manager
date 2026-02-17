@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { supabase } from '../lib/supabaseClient'
+import { supabase, handleSupabaseAuthError } from '../lib/supabaseClient'
 
 export default function StudentProfile() {
   const { id } = useParams()
@@ -12,11 +12,33 @@ export default function StudentProfile() {
   async function fetchData() {
     if (!id) return
     setLoading(true)
-    const { data: s } = await supabase.from('students').select('*').eq('id', id).single()
-    const { data: h } = await supabase.from('belt_history').select('*').eq('student_id', id).order('awarded_at', { ascending: false })
-    setStudent(s)
-    setHistory(h || [])
-    setLoading(false)
+    try {
+      const { data: s, error: sErr } = await supabase.from('students').select('*').eq('id', id).single()
+      if (sErr) {
+        if (!handleSupabaseAuthError(sErr)) {
+          console.error('Erro ao carregar aluno', sErr)
+          setMsg(sErr.message || 'Erro ao carregar aluno.')
+        }
+        return
+      }
+
+      const { data: h, error: hErr } = await supabase
+        .from('belt_history')
+        .select('*')
+        .eq('student_id', id)
+        .order('awarded_at', { ascending: false })
+
+      if (hErr) {
+        if (!handleSupabaseAuthError(hErr)) {
+          console.error('Erro ao carregar histórico de faixas', hErr)
+        }
+      }
+
+      setStudent(s)
+      setHistory(h || [])
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(()=>{ fetchData() }, [id])

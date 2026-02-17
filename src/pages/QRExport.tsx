@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { supabase } from '../lib/supabaseClient'
+import { supabase, handleSupabaseAuthError } from '../lib/supabaseClient'
 import { useAuth } from '../lib/AuthContext'
 import QRCode from 'react-qr-code'
 import QRCodeLib from 'qrcode'
@@ -27,7 +27,14 @@ export default function QRExport() {
       .order('full_name', { ascending: true })
     if (onlyActive) q = q.eq('active', true)
     const { data, error } = await q
-    setStudents(error ? [] : (data || []))
+    if (error) {
+      if (!handleSupabaseAuthError(error)) {
+        console.error('Erro ao carregar alunos para exportação de QR', error)
+      }
+      setStudents([])
+    } else {
+      setStudents(data || [])
+    }
     setLoading(false)
   }
 
@@ -93,7 +100,12 @@ export default function QRExport() {
                     const file = new File([blob], `${s.id}.png`, { type: 'image/png' })
                     const path = `public/qrcodes/${s.id}.png`
                     const { error: uploadErr } = await supabase.storage.from('avatars').upload(path, file, { upsert: true })
-                    if (uploadErr) return
+                    if (uploadErr) {
+                      if (!handleSupabaseAuthError(uploadErr)) {
+                        console.error('Erro ao enviar QR para storage', uploadErr)
+                      }
+                      return
+                    }
                     const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
                     const qurl = urlData.publicUrl
                     const ok = await fetch('/api/qr/markSent', {

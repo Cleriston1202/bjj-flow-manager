@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { supabase, isSupabaseConfigured } from './supabaseClient'
+import { supabase, isSupabaseConfigured, handleSupabaseAuthError, wasManualLogout, clearSessionExpiredFlag } from './supabaseClient'
 
 export interface TenantInfo {
   organizationId: string
@@ -29,23 +29,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false)
       return
     }
-    const { data: { session } } = await (supabase as any).auth.getSession()
-    setUser(session?.user ?? null)
-    if (session?.user) {
-      await loadTenantForUser(session.user.id)
+    try {
+      const { data, error } = await (supabase as any).auth.getSession()
+      if (error) {
+        handleSupabaseAuthError(error)
+        setUser(null)
+        setTenant(null)
+        setLoading(false)
+        return
+      }
+      const session = data?.session
+      setUser(session?.user ?? null)
+      if (session?.user) {
+        await loadTenantForUser(session.user.id)
+        clearSessionExpiredFlag()
+      } else {
+        setTenant(null)
+      }
+      setLoading(false)
+    } catch (e: any) {
+      console.error('Erro ao carregar sessão Supabase', e)
+      setUser(null)
+      setTenant(null)
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   async function loadTenantForUser(userId: string) {
     if (!isSupabaseConfigured) return
     try {
       // Tenta carregar o profile do usuário
-      const { data: profile } = await supabase
+      const { data: profile, error: profileErr } = await supabase
         .from('profiles')
         .select('id, organization_id')
         .eq('id', userId)
         .maybeSingle()
+
+      if (profileErr) {
+        if (!handleSupabaseAuthError(profileErr)) {
+          console.error('Erro ao carregar profile do usuário', profileErr)
+        }
+        setTenant(null)
+        return
+      }
 
       let organizationId = profile?.organization_id as string | null | undefined
 
@@ -58,7 +84,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .single()
 
         if (orgErr || !org) {
-          console.error('Erro ao criar organização padrão para o usuário', orgErr)
+          if (orgErr) {
+            if (!handleSupabaseAuthError(orgErr)) {
+              console.error('Erro ao criar organização padrão para o usuário', orgErr)
+            }
+          }
           setTenant(null)
           return
         }
@@ -66,14 +96,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         organizationId = org.id
 
         if (profile) {
-          await supabase
+          const { error: updateProfileErr } = await supabase
             .from('profiles')
             .update({ organization_id: organizationId })
             .eq('id', userId)
+          if (updateProfileErr) {
+            if (!handleSupabaseAuthError(updateProfileErr)) {
+              console.error('Erro ao atualizar profile do usuário', updateProfileErr)
+            }
+            setTenant(null)
+            return
+          }
         } else {
-          await supabase
+          const { error: insertProfileErr } = await supabase
             .from('profiles')
             .insert([{ id: userId, organization_id: organizationId, role: 'admin' }])
+          if (insertProfileErr) {
+            if (!handleSupabaseAuthError(insertProfileErr)) {
+              console.error('Erro ao criar profile do usuário', insertProfileErr)
+            }
+            setTenant(null)
+            return
+          }
         }
       }
 
@@ -84,7 +128,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle()
 
       if (!orgRow || orgFetchErr) {
-        console.error('Erro ao carregar organização do tenant', orgFetchErr)
+        if (orgFetchErr) {
+          if (!handleSupabaseAuthError(orgFetchErr)) {
+            console.error('Erro ao carregar organização do tenant', orgFetchErr)
+          }
+        }
         setTenant(null)
         return
       }
@@ -104,10 +152,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     loadSession()
     if (isSupabaseConfigured && (supabase as any).auth) {
-      const { data: listener } = (supabase as any).auth.onAuthStateChange((_event: any, session: any) => {
+      const { data: listener } = (supabase as any).auth.onAuthStateChange((event: any, session: any) => {
         setUser(session?.user ?? null)
-        if (session?.user?.id) loadTenantForUser(session.user.id)
-        else setTenant(null)
+        if (session?.user?.id) {
+          loadTenantForUser(session.user.id)
+          clearSessionExpiredFlag()
+        } else {
+          setTenant(null)
+        }
+
+        // Se a sessão terminou (SIGNED_OUT ou session nula) garantimos redirecionamento para /login
+        if (event === 'SIGNED_OUT' || !session) {
+          if (typeof window !== 'undefined') {
+            try {
+              window.localStorage.removeItem('session_started_at')
+            } catch {
+              // ignore storage errors
+            }
+
+            const manual = wasManualLogout()
+            if (!manual && window.location.pathname !== '/login') {
+              try {
+                window.alert('Sua sessão expirou. Por favor, faça login novamente para continuar.')
+              } catch {
+                // ignore alert errors
+              }
+              window.location.href = '/login'
+            }
+          }
+        }
       })
       return () => {
         listener?.subscription?.unsubscribe?.()

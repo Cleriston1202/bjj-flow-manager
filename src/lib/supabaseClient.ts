@@ -1,9 +1,16 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
+// Uso de `(import.meta as any).env` para evitar erro de tipo "env" inexistente
+// em ambientes onde a definição de `ImportMeta` não inclui `env`.
+const env = (import.meta as any).env || {}
+const supabaseUrl = env.VITE_SUPABASE_URL as string
+const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY as string
 
 export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey)
+
+// Flags usados para diferenciar logout manual de expiração e para evitar múltiplos alerts
+const MANUAL_LOGOUT_FLAG = 'bondade_manual_logout'
+const SESSION_EXPIRED_FLAG = 'bondade_session_expired'
 
 function makeStub() {
   const stubQuery = {
@@ -32,3 +39,83 @@ export const supabase: any =
   (supabaseUrl && supabaseAnonKey)
     ? createClient(supabaseUrl, supabaseAnonKey)
     : makeStub()
+
+function isAuthErrorLike(error: any): boolean {
+  if (!error) return false
+  const message = String((error as any).message || (error as any).msg || '').toLowerCase()
+  const code = String((error as any).code ?? (error as any).status ?? '')
+  if (!message && !code) return false
+  const keywords = ['jwt expired', 'invalid token', 'invalid jwt', 'unauthenticated', 'auth error', 'token has expired']
+  const matchKeyword = keywords.some(k => message.includes(k))
+  const is401 = code === '401'
+  return matchKeyword || is401
+}
+
+export function markManualLogout() {
+  if (typeof window === 'undefined') return
+  try {
+    window.sessionStorage.setItem(MANUAL_LOGOUT_FLAG, '1')
+  } catch {
+    // ignore storage errors
+  }
+}
+
+export function wasManualLogout(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    const value = window.sessionStorage.getItem(MANUAL_LOGOUT_FLAG)
+    if (value) {
+      window.sessionStorage.removeItem(MANUAL_LOGOUT_FLAG)
+      return true
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return false
+}
+
+export function clearSessionExpiredFlag() {
+  if (typeof window === 'undefined') return
+  try {
+    window.sessionStorage.removeItem(SESSION_EXPIRED_FLAG)
+  } catch {
+    // ignore storage errors
+  }
+}
+
+// Tratamento centralizado de erros de autenticação vindos do Supabase
+// Retorna true se tratou o erro (logout + redirecionamento)
+export function handleSupabaseAuthError(error: any): boolean {
+  if (!isSupabaseConfigured) return false
+  if (!isAuthErrorLike(error)) return false
+
+  if (typeof window !== 'undefined') {
+    try {
+      const alreadyHandled = window.sessionStorage.getItem(SESSION_EXPIRED_FLAG) === '1'
+      if (alreadyHandled) return true
+      window.sessionStorage.setItem(SESSION_EXPIRED_FLAG, '1')
+    } catch {
+      // ignore storage errors
+    }
+  }
+
+  try {
+    if ((supabase as any).auth?.signOut) {
+      ;(supabase as any).auth.signOut()
+    }
+  } catch {
+    // ignore signOut errors
+  }
+
+  if (typeof window !== 'undefined') {
+    try {
+      window.alert('Sua sessão expirou. Por favor, faça login novamente para continuar.')
+    } catch {
+      // ignore alert errors
+    }
+    window.location.href = '/login'
+  }
+
+  return true
+}
+

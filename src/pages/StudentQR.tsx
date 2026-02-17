@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { supabase } from '../lib/supabaseClient'
+import { supabase, handleSupabaseAuthError } from '../lib/supabaseClient'
 import { DEFAULT_CLUB_CONFIG, evaluateBeltProgress, type AttendanceRecord, type StudentRecord } from '../lib/beltLogic'
 import QRCode from 'react-qr-code'
 
@@ -68,6 +68,11 @@ export default function StudentQR() {
           .select('*')
           .eq('id', studentId)
           .maybeSingle()
+        if (sErr) {
+          if (handleSupabaseAuthError(sErr)) {
+            return
+          }
+        }
         if (sErr || !s) {
           setError('Aluno não encontrado.')
           return
@@ -83,6 +88,11 @@ export default function StudentQR() {
           .eq('student_id', studentId)
           .gte('attended_at', `${start}T00:00:00`)
           .lte('attended_at', `${end}T23:59:59`)
+        if (attErr) {
+          if (handleSupabaseAuthError(attErr)) {
+            return
+          }
+        }
         if (!attErr && att) {
           setClassesThisMonth(att.length)
         }
@@ -94,6 +104,11 @@ export default function StudentQR() {
           .eq('student_id', studentId)
           .gte('start_date', start)
           .lte('end_date', end)
+        if (payErr) {
+          if (handleSupabaseAuthError(payErr)) {
+            return
+          }
+        }
         if (!payErr && pays && pays.length > 0) {
           const p = pays[0]
           const st = computePaymentStatus(p)
@@ -109,6 +124,11 @@ export default function StudentQR() {
           .from('attendances')
           .select('attended_at')
           .eq('student_id', studentId)
+        if (attAllErr) {
+          if (handleSupabaseAuthError(attAllErr)) {
+            return
+          }
+        }
         if (!attAllErr && attAll) {
           const attendancesSinceBelt: AttendanceRecord[] = (attAll as any[]).map((a: any) => ({ attended_at: a.attended_at }))
           const studentRecord: StudentRecord = {

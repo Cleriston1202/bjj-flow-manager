@@ -36,7 +36,11 @@ function RequireAuth({ children }: { children: JSX.Element }) {
       const startedAt = parseInt(stored, 10)
       if (!Number.isNaN(startedAt) && now - startedAt > MAX_AGE_MS) {
         setExpired(true)
-        window.localStorage.removeItem(key)
+        try {
+          window.localStorage.removeItem(key)
+        } catch {
+          // ignore storage errors
+        }
         if (isSupabaseConfigured && (supabase as any).auth?.signOut) {
           ;(supabase as any).auth.signOut()
         }

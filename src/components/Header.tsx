@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { Home, Users, CheckSquare, QrCode, Wallet, Menu, X, Settings, LogOut } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
-import { supabase } from '../lib/supabaseClient'
+import { supabase, markManualLogout } from '../lib/supabaseClient'
 
 export default function Header() {
   const [open, setOpen] = useState(false)
@@ -11,6 +11,7 @@ export default function Header() {
 
   async function handleLogout() {
     try {
+      markManualLogout()
       if ((supabase as any).auth?.signOut) {
         await (supabase as any).auth.signOut()
       }
@@ -25,7 +26,7 @@ export default function Header() {
           {tenant?.logoUrl && (
             <img src={tenant.logoUrl} alt={tenant.organizationName} className="h-8 w-8 rounded-full object-cover bg-white" />
           )}
-          <h1 className="text-xl font-semibold">{tenant?.organizationName || 'Team Bondade'}</h1>
+          <h1 className="text-xl font-semibold">{tenant?.organizationName || 'JJ Menager'}</h1>
         </div>
         <button
           className="md:hidden inline-flex items-center justify-center rounded p-2 focus:outline-none focus:ring-2 focus:ring-white"

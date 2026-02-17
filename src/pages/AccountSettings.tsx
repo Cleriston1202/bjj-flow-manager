@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { supabase } from '../lib/supabaseClient'
+import { supabase, handleSupabaseAuthError } from '../lib/supabaseClient'
 import { useAuth } from '../lib/AuthContext'
 import { Upload, Save } from 'lucide-react'
 
@@ -24,7 +24,12 @@ export default function AccountSettings() {
         const ext = logoFile.name.split('.').pop()
         const path = `public/logos/${tenant.organizationId}.${ext}`
         const { error: upErr } = await supabase.storage.from('avatars').upload(path, logoFile, { upsert: true })
-        if (upErr) throw upErr
+        if (upErr) {
+          if (handleSupabaseAuthError(upErr)) {
+            return
+          }
+          throw upErr
+        }
         const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
         logoUrl = urlData.publicUrl
       }
@@ -33,8 +38,12 @@ export default function AccountSettings() {
         .from('organizations')
         .update({ name, plan, logo_url: logoUrl })
         .eq('id', tenant.organizationId)
-
-      if (error) throw error
+      if (error) {
+        if (handleSupabaseAuthError(error)) {
+          return
+        }
+        throw error
+      }
       await refreshTenant()
       setMessage('Configurações salvas com sucesso.')
     } catch (err: any) {

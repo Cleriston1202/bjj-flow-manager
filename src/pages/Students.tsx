@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Pencil, Trash2 } from 'lucide-react'
-import { supabase } from '../lib/supabaseClient'
+import { supabase, handleSupabaseAuthError } from '../lib/supabaseClient'
 import { useAuth } from '../lib/AuthContext'
 import StudentForm, { Student } from '../components/StudentForm'
 
@@ -29,7 +29,9 @@ export default function Students() {
       .order('full_name')
       .range(from, to)
     if (error) {
-      console.error(error)
+      if (!handleSupabaseAuthError(error)) {
+        console.error(error)
+      }
     } else {
       setStudents((data || []) as Student[])
       if (typeof count === 'number') setTotalCount(count)
@@ -53,7 +55,12 @@ export default function Students() {
     if (!id) return
     if (!confirm('Remover aluno?')) return
     const { error } = await supabase.from('students').delete().eq('id', id)
-    if (error) return alert('Erro: ' + error.message)
+    if (error) {
+      if (!handleSupabaseAuthError(error)) {
+        alert('Erro: ' + error.message)
+      }
+      return
+    }
     fetchStudents(page)
   }
 

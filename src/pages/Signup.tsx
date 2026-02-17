@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { supabase, isSupabaseConfigured } from '../lib/supabaseClient'
+import { supabase, isSupabaseConfigured, handleSupabaseAuthError } from '../lib/supabaseClient'
 import { Lock, Mail, UserPlus } from 'lucide-react'
 
 export default function Signup() {
@@ -41,15 +41,24 @@ export default function Signup() {
       } else {
         const userId = data.user.id
         try {
-          const { data: org } = await supabase
+          const { data: org, error: orgErr } = await supabase
             .from('organizations')
             .insert([{ name: academyName.trim(), plan: 'free' }])
             .select('id')
             .single()
-          if (org) {
-            await supabase.from('profiles').insert([
+          if (orgErr) {
+            if (!handleSupabaseAuthError(orgErr)) {
+              console.error('Erro ao criar organização para o admin:', orgErr)
+            }
+          } else if (org) {
+            const { error: profileErr } = await supabase.from('profiles').insert([
               { id: userId, organization_id: org.id, role: 'admin' },
             ])
+            if (profileErr) {
+              if (!handleSupabaseAuthError(profileErr)) {
+                console.error('Erro ao criar perfil do admin:', profileErr)
+              }
+            }
           }
         } catch (e) {
           console.error('Erro ao criar organização/perfil para o admin:', e)

@@ -64,9 +64,6 @@ app.post('/api/checkin', async (req, res) => {
   }
 })
 
-app.post('/api/awardBelt', async (req, res) => {
-  try {
-    const { studentId } = req.body || {}
 if (process.env.NODE_ENV !== 'production') {
   app.post('/api/admin/createTestUser', async (req, res) => {
     try {

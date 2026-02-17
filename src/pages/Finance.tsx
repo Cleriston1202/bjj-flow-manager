@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState, useRef } from 'react'
-import { supabase } from '../lib/supabaseClient'
+import { supabase, handleSupabaseAuthError } from '../lib/supabaseClient'
 import { useAuth } from '../lib/AuthContext'
 import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription } from '@radix-ui/react-dialog'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@radix-ui/react-dropdown-menu'
@@ -68,10 +68,16 @@ export default function Finance() {
     setLoading(true)
     try {
       if (!tenant) return
-      const { data: sdata } = await supabase
+      const { data: sdata, error: sErr } = await supabase
         .from('students')
         .select('*')
         .eq('organization_id', tenant.organizationId)
+      if (sErr) {
+        if (!handleSupabaseAuthError(sErr)) {
+          console.error('Erro ao carregar alunos para financeiro', sErr)
+        }
+        return
+      }
       const sArr = Array.isArray(sdata) ? sdata : []
       const studentsMap: Record<string, any> = {}
       sArr.forEach((s: any) => { studentsMap[s.id] = s })
@@ -82,12 +88,18 @@ export default function Finance() {
       const monthStart = `${selectedMonth}-01`
       const monthEnd = `${selectedMonth}-${String(lastDay).padStart(2, '0')}`
 
-      const { data: pdata } = await supabase
+      const { data: pdata, error: pErr } = await supabase
         .from('payments')
         .select('*')
         .eq('organization_id', tenant.organizationId)
         .gte('start_date', monthStart)
         .lte('end_date', monthEnd)
+      if (pErr) {
+        if (!handleSupabaseAuthError(pErr)) {
+          console.error('Erro ao carregar pagamentos', pErr)
+        }
+        return
+      }
       setPayments(Array.isArray(pdata) ? pdata : [])
     } catch (e) {
       console.error('Erro ao carregar dados financeiros', e)
@@ -108,7 +120,13 @@ export default function Finance() {
       const last = new Date(yy, mm, 0).getDate()
       const monthStart = `${selectedMonth}-01`
       const monthEnd = `${selectedMonth}-${String(last).padStart(2,'0')}`
-      const { data: pdata } = await supabase.from('payments').select('*').gte('start_date', monthStart).lte('end_date', monthEnd)
+      const { data: pdata, error: pErr } = await supabase.from('payments').select('*').gte('start_date', monthStart).lte('end_date', monthEnd)
+      if (pErr) {
+        if (!handleSupabaseAuthError(pErr)) {
+          console.error('Erro ao garantir mensalidades do mês', pErr)
+        }
+        return
+      }
       const paymentsForMonth = Array.isArray(pdata) ? pdata : []
       const toInsert: any[] = []
       for (const s of Object.values(students)) {
@@ -126,8 +144,14 @@ export default function Finance() {
         }
       }
       if (toInsert.length) {
-        await supabase.from('payments').insert(toInsert)
-        await load()
+        const { error: insertErr } = await supabase.from('payments').insert(toInsert)
+        if (insertErr) {
+          if (!handleSupabaseAuthError(insertErr)) {
+            console.error('Erro ao criar mensalidades pendentes', insertErr)
+          }
+        } else {
+          await load()
+        }
       }
       ensuredMonthsRef.current[selectedMonth] = true
     }
@@ -177,8 +201,10 @@ export default function Finance() {
         .select()
         .single()
       if (error) {
-        console.error('Erro ao atualizar pagamento:', error)
-        alert('Falha ao registrar baixa: ' + (error.message || ''))
+        if (!handleSupabaseAuthError(error)) {
+          console.error('Erro ao atualizar pagamento:', error)
+          alert('Falha ao registrar baixa: ' + (error.message || ''))
+        }
       } else {
         setPayments(prev => prev.map(p => p.id === data.id ? { ...p, ...data } : p))
       }

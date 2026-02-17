@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { supabase } from '../lib/supabaseClient'
+import { supabase, handleSupabaseAuthError } from '../lib/supabaseClient'
 import { useAuth } from '../lib/AuthContext'
 import { QrReader } from 'react-qr-reader'
 import { DEFAULT_CLUB_CONFIG, evaluateBeltProgress } from '../lib/beltLogic'
@@ -63,7 +63,13 @@ export default function Attendance() {
         .select('id, full_name, photo_url, current_belt, active')
         .eq('organization_id', tenant.organizationId)
         .order('full_name', { ascending: true })
-      if (!error && data) setStudents(data)
+      if (error) {
+        if (!handleSupabaseAuthError(error)) {
+          console.error('Erro ao carregar alunos para presença', error)
+        }
+        return
+      }
+      if (data) setStudents(data)
     }
     loadStudents()
   }, [tenant])
@@ -85,6 +91,12 @@ export default function Attendance() {
         .select('*')
         .eq('id', studentId)
         .maybeSingle()
+
+      if (studentError) {
+        if (handleSupabaseAuthError(studentError)) {
+          return
+        }
+      }
 
       if (studentError || !student || student.active === false) {
         setMessage('Aluno não encontrado ou inativo.')
@@ -117,7 +129,9 @@ export default function Attendance() {
         .lte('end_date', end)
 
       if (payError) {
-        console.error('Erro ao buscar pagamentos para check-in:', payError.message)
+        if (!handleSupabaseAuthError(payError)) {
+          console.error('Erro ao buscar pagamentos para check-in:', payError.message)
+        }
       }
 
       const payment = (payments && payments[0]) || null
@@ -143,6 +157,12 @@ export default function Attendance() {
         .order('attended_at', { ascending: false })
         .limit(1)
 
+      if (lastErr) {
+        if (handleSupabaseAuthError(lastErr)) {
+          return
+        }
+      }
+
       if (!lastErr && lastAtt && lastAtt.length > 0) {
         setMessage('Já existe um check-in recente para este aluno nas últimas 2 horas. Não será contado crédito extra de aula.')
         setMessageType('warning')
@@ -164,6 +184,9 @@ export default function Attendance() {
         .insert([attendanceRow])
 
       if (attendanceError) {
+        if (handleSupabaseAuthError(attendanceError)) {
+          return
+        }
         setMessage(attendanceError.message || 'Erro ao registrar presença.')
         setMessageType('error')
         return
@@ -181,6 +204,12 @@ export default function Attendance() {
 
       let progressMessage = ''
       let prepared = false
+      if (attErr) {
+        if (handleSupabaseAuthError(attErr)) {
+          return
+        }
+      }
+
       if (!attErr && attAll) {
         const attendancesSinceBelt = (attAll as any[]).map((a: any) => ({ attended_at: a.attended_at }))
         const progress = evaluateBeltProgress(
@@ -224,7 +253,9 @@ export default function Attendance() {
           .eq('id', studentId)
 
         if (updateError) {
-          console.error('Erro ao atualizar progresso do aluno:', updateError.message)
+          if (!handleSupabaseAuthError(updateError)) {
+            console.error('Erro ao atualizar progresso do aluno:', updateError.message)
+          }
         }
       }
 
