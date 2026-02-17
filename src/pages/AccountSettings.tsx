@@ -55,7 +55,13 @@ export default function AccountSettings() {
 
   const appBaseUrl = ((): string => {
     if (typeof window !== 'undefined') return window.location.origin
-    const fromEnv = (import.meta as any).env?.VITE_APP_BASE_URL as string | undefined
+    const fromEnv = (() => {
+      const nodeProcess = (globalThis as any).process as { env?: Record<string, string | undefined> } | undefined
+      if (nodeProcess?.env) {
+        return nodeProcess.env.NEXT_PUBLIC_APP_BASE_URL || nodeProcess.env.VITE_APP_BASE_URL
+      }
+      return undefined
+    })()
     return fromEnv || 'https://app.seusaas.com'
   })()
 

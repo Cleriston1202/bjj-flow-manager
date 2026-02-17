@@ -1,10 +1,37 @@
 import { createClient } from '@supabase/supabase-js'
 
-// Uso de `(import.meta as any).env` para evitar erro de tipo "env" inexistente
-// em ambientes onde a definição de `ImportMeta` não inclui `env`.
-const env = (import.meta as any).env || {}
-const supabaseUrl = env.VITE_SUPABASE_URL as string
-const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY as string
+type EnvRecord = Record<string, string | undefined>
+
+// Lê variáveis de ambiente tanto em Next (process.env.NEXT_PUBLIC_*) quanto em Vite (import.meta.env.VITE_*)
+function getSupabaseEnv() {
+  let url: string | undefined
+  let anonKey: string | undefined
+
+  // Next.js (process.env.NEXT_PUBLIC_*)
+  if (typeof process !== 'undefined' && (process as any).env) {
+    const nodeEnv = (process as any).env as EnvRecord
+    url = nodeEnv.NEXT_PUBLIC_SUPABASE_URL || url
+    anonKey = nodeEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY || anonKey
+  }
+
+  // Vite (import.meta.env.VITE_*)
+  try {
+    const viteEnv = (import.meta as any).env as EnvRecord | undefined
+    if (viteEnv) {
+      url = url || viteEnv.VITE_SUPABASE_URL
+      anonKey = anonKey || viteEnv.VITE_SUPABASE_ANON_KEY
+    }
+  } catch {
+    // ignore quando import.meta não existe (Next em runtime)
+  }
+
+  return {
+    supabaseUrl: url || '',
+    supabaseAnonKey: anonKey || '',
+  }
+}
+
+const { supabaseUrl, supabaseAnonKey } = getSupabaseEnv()
 
 export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey)
 
