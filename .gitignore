@@ -8,6 +8,22 @@ pnpm-debug.log*
 # Build outputs
 dist/
 build/
+out/
+
+# Next.js build/cache
+.next/
+.vercel/
+.vercel_build_output/
+
+# Webpack/Next pack files
+*.pack.gz
+
+# Misc caches / tooling
+coverage/
+.turbo/
+.swc/
+.eslintcache
+*.tsbuildinfo
 
 # Vite / cache
 .vite/
