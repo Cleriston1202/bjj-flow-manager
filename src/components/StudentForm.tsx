@@ -11,6 +11,8 @@ export interface Student {
   contact?: { phone?: string; email?: string }
   current_belt?: string
   current_degree?: number
+  created_at?: string
+  belt_since?: string
 }
 
 export default function StudentForm({
@@ -81,9 +83,13 @@ export default function StudentForm({
           }
         }
 
+        const nowIso = new Date().toISOString()
+
         const payload = {
           ...form,
           organization_id: tenant.organizationId,
+          created_at: nowIso,
+          belt_since: form.belt_since || nowIso,
         }
         const { data, error } = await supabase.from('students').insert([payload]).select().single()
         if (error) throw error
