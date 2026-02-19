@@ -4,6 +4,7 @@ import { useAuth } from '../lib/AuthContext'
 import { getBaseUrl } from '../lib/baseUrl'
 import { QrReader } from 'react-qr-reader'
 import { DEFAULT_CLUB_CONFIG, evaluateBeltProgress } from '../lib/beltLogic'
+import { useParams } from 'react-router-dom'
 
 function beltBorderColor(belt: string | null | undefined) {
   const b = (belt || 'Branca').toLowerCase()
@@ -43,6 +44,30 @@ function computePaymentStatus(payment: any, today = new Date()) {
 
 const MIN_CHECKINS_30D = 8
 
+function playBeep(kind: 'success' | 'error') {
+  if (typeof window === 'undefined') return
+  const AnyWindow = window as any
+  const AudioCtx = AnyWindow.AudioContext || AnyWindow.webkitAudioContext
+  if (!AudioCtx) return
+  try {
+    const ctx = new AudioCtx()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.type = 'sine'
+    osc.frequency.value = kind === 'success' ? 880 : 440
+    const now = ctx.currentTime
+    gain.gain.setValueAtTime(0.001, now)
+    gain.gain.exponentialRampToValueAtTime(0.2, now + 0.01)
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2)
+    osc.start()
+    osc.stop(now + 0.25)
+  } catch {
+    // silenciosamente ignora falhas de áudio
+  }
+}
+
 export default function Attendance() {
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(false)
@@ -54,7 +79,21 @@ export default function Attendance() {
   const [scanFeedback, setScanFeedback] = useState<{ status: 'ok' | 'warning' | 'blocked'; name: string } | null>(null)
   const [qrEnabled, setQrEnabled] = useState(false)
   const lastScanRef = useRef<{ id: string; ts: number } | null>(null)
+  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([])
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null)
+  const [torchOn, setTorchOn] = useState(false)
+  const torchStreamRef = useRef<MediaStream | null>(null)
+  const [scanLoading, setScanLoading] = useState(false)
+  const [lastScanProgress, setLastScanProgress] = useState<{
+    percent: number
+    prepared: boolean
+    studentName: string
+    belt: string
+    degree: number
+  } | null>(null)
   const { tenant } = useAuth()
+  const { organizationId } = useParams<{ organizationId?: string }>()
+  const isKiosk = Boolean(organizationId)
 
   useEffect(() => {
     async function loadStudents() {
@@ -75,6 +114,37 @@ export default function Attendance() {
     loadStudents()
   }, [tenant])
 
+  useEffect(() => {
+    if (!qrEnabled) return
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.enumerateDevices) return
+    let cancelled = false
+    navigator.mediaDevices
+      .enumerateDevices()
+      .then((devices) => {
+        if (cancelled) return
+        const videos = devices.filter((d) => d.kind === 'videoinput')
+        setVideoDevices(videos)
+        if (!selectedDeviceId && videos.length > 0) {
+          setSelectedDeviceId(videos[0].deviceId || null)
+        }
+      })
+      .catch((err) => {
+        console.error('Erro ao listar câmeras', err)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [qrEnabled, selectedDeviceId])
+
+  useEffect(() => {
+    return () => {
+      if (torchStreamRef.current) {
+        torchStreamRef.current.getTracks().forEach((t) => t.stop())
+        torchStreamRef.current = null
+      }
+    }
+  }, [])
+
   async function performCheckin(studentId: string, source: 'scan' | 'manual' = 'manual') {
     if (!studentId) return
     if (!tenant) {
@@ -83,6 +153,10 @@ export default function Attendance() {
       return
     }
     setLoading(true)
+    if (source === 'scan') {
+      setScanLoading(true)
+      setScanFeedback(null)
+    }
     setMessage(null)
     setMessageType(null)
     try {
@@ -102,7 +176,10 @@ export default function Attendance() {
       if (studentError || !student || student.active === false) {
         setMessage('Aluno não encontrado ou inativo.')
         setMessageType('error')
-        if (source === 'scan') setScanFeedback({ status: 'blocked', name: studentId })
+        if (source === 'scan') {
+          setScanFeedback({ status: 'blocked', name: studentId })
+          playBeep('error')
+        }
         return
       }
 
@@ -116,7 +193,10 @@ export default function Attendance() {
       if (!capError && typeof count === 'number' && count >= maxCapacity) {
         setMessage('Capacidade máxima do tatame atingida para esta aula.')
         setMessageType('error')
-        if (source === 'scan') setScanFeedback({ status: 'blocked', name: student.full_name })
+        if (source === 'scan') {
+          setScanFeedback({ status: 'blocked', name: student.full_name })
+          playBeep('error')
+        }
         return
       }
 
@@ -141,7 +221,10 @@ export default function Attendance() {
       if (status === 'delinquent') {
         setMessage('Acesso bloqueado. Favor passar na recepção.')
         setMessageType('error')
-        if (source === 'scan') setScanFeedback({ status: 'blocked', name: student.full_name })
+        if (source === 'scan') {
+          setScanFeedback({ status: 'blocked', name: student.full_name })
+          playBeep('error')
+        }
         return
       }
 
@@ -205,6 +288,7 @@ export default function Attendance() {
 
       let progressMessage = ''
       let prepared = false
+      let percent = 0
       if (attErr) {
         if (handleSupabaseAuthError(attErr)) {
           return
@@ -224,7 +308,7 @@ export default function Attendance() {
           DEFAULT_CLUB_CONFIG,
         )
 
-        const percent = Math.min(
+        percent = Math.min(
           100,
           Math.round(
             (progress.attendedSinceBelt / Math.max(1, progress.requiredForNextDegree)) * 100,
@@ -242,6 +326,16 @@ export default function Attendance() {
           : `${(student.current_degree || 0) + 1}º grau`
 
         progressMessage = `Aula ${progress.attendedSinceBelt}/${progress.requiredForNextDegree} para o ${nextDegreeLabel} (${percent}%).`
+
+        if (source === 'scan') {
+          setLastScanProgress({
+            percent,
+            prepared,
+            studentName: student.full_name,
+            belt: student.current_belt || 'Branca',
+            degree: student.current_degree || 0,
+          })
+        }
 
         // atualizar contadores de progresso no registro do aluno
         const currentTotal = student.total_classes ?? 0
@@ -267,19 +361,28 @@ export default function Attendance() {
           (progressMessage ? ` ${progressMessage}` : ''),
         )
         setMessageType('warning')
-        if (source === 'scan') setScanFeedback({ status: 'warning', name: student.full_name })
+        if (source === 'scan') {
+          setScanFeedback({ status: 'warning', name: student.full_name })
+          playBeep('success')
+        }
       } else if (prepared) {
         setMessage(
           `🎯 Meta atingida! Aluno pronto para avaliação. ${progressMessage || ''}`,
         )
         setMessageType('success')
-        if (source === 'scan') setScanFeedback({ status: 'ok', name: student.full_name })
+        if (source === 'scan') {
+          setScanFeedback({ status: 'ok', name: student.full_name })
+          playBeep('success')
+        }
       } else {
         setMessage(
           `Presença registrada com sucesso.${progressMessage ? ` ${progressMessage}` : ''}`,
         )
         setMessageType('success')
-        if (source === 'scan') setScanFeedback({ status: 'ok', name: student.full_name })
+        if (source === 'scan') {
+          setScanFeedback({ status: 'ok', name: student.full_name })
+          playBeep('success')
+        }
       }
       setCheckedInIds(prev => Array.from(new Set([...prev, studentId])))
     } catch (err: any) {
@@ -288,6 +391,9 @@ export default function Attendance() {
       setMessageType('error')
     } finally {
       setLoading(false)
+      if (source === 'scan') {
+        setScanLoading(false)
+      }
     }
   }
 
@@ -322,41 +428,163 @@ export default function Attendance() {
 
   const academyQrValue = `${getBaseUrl()}/attendance`
 
+  const videoConstraints: MediaTrackConstraints | undefined = selectedDeviceId
+    ? { deviceId: { exact: selectedDeviceId } as any, frameRate: { ideal: 10 } }
+    : { facingMode: 'environment', frameRate: { ideal: 10 } } as any
+
+  async function handleToggleTorch() {
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) return
+    try {
+      if (torchOn) {
+        if (torchStreamRef.current) {
+          torchStreamRef.current.getTracks().forEach((t) => t.stop())
+          torchStreamRef.current = null
+        }
+        setTorchOn(false)
+        return
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
+          advanced: [{ torch: true }],
+        } as any,
+      })
+      const [track] = stream.getVideoTracks()
+      if (track && (track as any).applyConstraints) {
+        try {
+          await (track as any).applyConstraints({ advanced: [{ torch: true }] })
+        } catch (e) {
+          console.error('Torch constraints não suportados', e)
+        }
+      }
+      torchStreamRef.current = stream
+      setTorchOn(true)
+    } catch (e) {
+      console.error('Torch não suportado para este dispositivo', e)
+    }
+  }
+
+  function handleSwitchCamera() {
+    if (videoDevices.length <= 1) return
+    if (!selectedDeviceId) {
+      setSelectedDeviceId(videoDevices[1].deviceId || null)
+      return
+    }
+    const currentIndex = videoDevices.findIndex((d) => d.deviceId === selectedDeviceId)
+    const nextIndex = (currentIndex + 1) % videoDevices.length
+    setSelectedDeviceId(videoDevices[nextIndex].deviceId || null)
+  }
+
   return (
-    <div className="max-w-6xl mx-auto">
-      <h2 className="text-2xl font-bold mb-4">Central de Check-in &amp; Acesso</h2>
+    <div className={isKiosk ? 'min-h-screen bg-slate-950 text-slate-50 px-4 py-4' : 'max-w-6xl mx-auto'}>
+      {!isKiosk && (
+        <h2 className="text-2xl font-bold mb-4 text-slate-50">Central de Check-in &amp; Acesso</h2>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* Totem / QR */}
-        <div className="border rounded-lg p-4 flex flex-col gap-4">
+        <div className="border border-slate-800 bg-slate-900/80 rounded-2xl p-4 flex flex-col gap-4 shadow-sm">
           <div className="flex items-center justify-between mb-1">
-            <h3 className="font-semibold">Modo Totem (QR Code)</h3>
+            <h3 className="font-semibold text-slate-50">Modo Totem (QR Code)</h3>
             <button
               type="button"
               onClick={() => setQrEnabled(v => !v)}
-              className="text-xs px-3 py-1 rounded border border-gray-300 hover:bg-gray-50"
+              className="text-xs px-3 py-1 rounded border border-slate-600 text-slate-100 hover:bg-slate-800"
             >
               {qrEnabled ? 'Desligar câmera' : 'Ligar câmera'}
             </button>
           </div>
-          <p className="text-xs text-gray-500 mb-2">O aluno aproxima o QR do cartão ou celular na câmera para registrar o check-in desta aula.</p>
-          <div className="border rounded overflow-hidden bg-black/80 text-white flex items-center justify-center min-h-[220px]">
+          <p className="text-xs text-slate-400 mb-2">O aluno aproxima o QR do cartão ou celular na câmera para registrar o check-in desta aula.</p>
+          <div className="relative border border-slate-800 rounded-2xl overflow-hidden bg-black/80 text-white flex items-center justify-center min-h-[260px] md:min-h-[320px]">
             {qrEnabled ? (
-              <QrReader
-                constraints={{ facingMode: 'environment' }}
-                onResult={(result: any, error: any) => {
-                  if (result) {
-                    const text = (result?.getText?.() ?? result?.text ?? '').toString()
-                    handleScan(text || null)
-                  }
-                  if (error) {
-                    handleScanError(error)
-                  }
-                }}
-              />
+              <>
+                <QrReader
+                  constraints={videoConstraints as any}
+                  scanDelay={100}
+                  onResult={(result: any, error: any) => {
+                    if (result) {
+                      const text = (result?.getText?.() ?? result?.text ?? '').toString()
+                      handleScan(text || null)
+                    }
+                    if (error) {
+                      handleScanError(error)
+                    }
+                  }}
+                  containerStyle={{ width: '100%', height: '100%' }}
+                  videoStyle={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                  <div
+                    className={`relative w-60 h-60 md:w-72 md:h-72 rounded-2xl border-2 transition-colors duration-300 ${
+                      scanFeedback?.status === 'ok'
+                        ? 'border-emerald-400 shadow-[0_0_0_2px_rgba(16,185,129,0.7)] animate-pulse'
+                        : scanFeedback?.status === 'blocked'
+                        ? 'border-red-500 shadow-[0_0_0_2px_rgba(239,68,68,0.7)] animate-pulse'
+                        : 'border-slate-300/80 shadow-[0_0_0_1px_rgba(148,163,184,0.6)]'
+                    } bg-transparent`}
+                  >
+                    <div className="absolute -top-1 -left-1 h-6 w-6 border-t-4 border-l-4 border-emerald-400" />
+                    <div className="absolute -top-1 -right-1 h-6 w-6 border-t-4 border-r-4 border-emerald-400" />
+                    <div className="absolute -bottom-1 -left-1 h-6 w-6 border-b-4 border-l-4 border-emerald-400" />
+                    <div className="absolute -bottom-1 -right-1 h-6 w-6 border-b-4 border-r-4 border-emerald-400" />
+                  </div>
+                </div>
+              </>
             ) : (
-              <div className="text-xs text-gray-300 p-4 text-center">
+              <div className="text-xs text-slate-300 p-4 text-center">
                 Clique em "Ligar câmera" para iniciar o leitor de QR Code.
+              </div>
+            )}
+          </div>
+          {qrEnabled && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-slate-300">
+              {videoDevices.length > 1 && (
+                <button
+                  type="button"
+                  onClick={handleSwitchCamera}
+                  className="px-3 py-1 rounded-full border border-slate-600 bg-slate-900/80 hover:bg-slate-800"
+                >
+                  Trocar câmera
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleToggleTorch}
+                className="px-3 py-1 rounded-full border border-slate-600 bg-slate-900/80 hover:bg-slate-800"
+              >
+                Flash: {torchOn ? 'Ligado' : 'Desligado'}
+              </button>
+              <span className="text-[11px] text-slate-500">
+                Dica: mantenha o QR no quadrado central para leitura mais rápida.
+              </span>
+            </div>
+          )}
+
+          <div className="mt-4">
+            {scanLoading && (
+              <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-4 animate-pulse">
+                <div className="h-3 w-32 bg-slate-700 rounded mb-2" />
+                <div className="h-2 w-full bg-slate-800 rounded mb-2" />
+                <div className="h-2 w-3/4 bg-slate-800 rounded" />
+              </div>
+            )}
+            {!scanLoading && lastScanProgress && (
+              <div className="rounded-xl border border-slate-800 bg-gradient-to-r from-slate-950 to-slate-900 p-4">
+                <div className="flex items-center justify-between text-xs text-slate-300 mb-1">
+                  <span>Progresso de graduação</span>
+                  <span className="font-semibold text-emerald-400">{lastScanProgress.percent}%</span>
+                </div>
+                <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden mb-2">
+                  <div
+                    className="h-full bg-emerald-500 transition-all duration-500"
+                    style={{ width: `${lastScanProgress.percent}%` }}
+                  />
+                </div>
+                <div className="text-[11px] text-slate-400">
+                  {lastScanProgress.prepared
+                    ? `🎯 ${lastScanProgress.studentName} está pronto para avaliação da próxima graduação.`
+                    : `${lastScanProgress.studentName} em ${lastScanProgress.belt} (${lastScanProgress.degree}º grau). Continue treinando para alcançar a próxima graduação!`}
+                </div>
               </div>
             )}
           </div>
@@ -386,26 +614,26 @@ export default function Attendance() {
               )}
             </div>
           )}
-          <div className="mt-3 text-xs text-gray-500">
+          <div className="mt-3 text-xs text-slate-500">
             URL do painel para abrir em outro dispositivo:<br />
-            <span className="break-all text-blue-700">{academyQrValue}</span>
+            <span className="break-all text-blue-400">{academyQrValue}</span>
           </div>
         </div>
 
         {/* Lista para check-in manual */}
-        <div className="border rounded-lg p-4 flex flex-col gap-3 col-span-1 lg:col-span-2">
-          <h3 className="font-semibold mb-1">Check-in Manual (Professor)</h3>
+        <div className="border border-slate-800 bg-slate-900/80 rounded-2xl p-4 flex flex-col gap-3 col-span-1 lg:col-span-2">
+          <h3 className="font-semibold mb-1 text-slate-50">Check-in Manual (Professor)</h3>
           <div className="flex gap-2 mb-2">
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="border p-2 rounded flex-1"
+              className="border border-slate-700 bg-slate-950 text-slate-50 placeholder:text-slate-500 p-2 rounded flex-1"
               placeholder="Buscar por nome ou ID ou ler QR"
             />
             <button
               onClick={handleCheckinButton}
               disabled={loading || !search.trim()}
-              className="bg-primary disabled:opacity-60 text-white px-4 py-2 rounded"
+              className="bg-primary disabled:opacity-60 text-white px-4 py-2 rounded shadow-sm"
             >
               {loading ? 'Registrando...' : 'Marcar'}
             </button>
@@ -413,9 +641,9 @@ export default function Attendance() {
 
           {message && (
             <div className={`mb-2 p-3 rounded border text-sm ${
-              messageType === 'success' ? 'border-green-300 bg-green-50 text-green-800' :
-              messageType === 'warning' ? 'border-yellow-300 bg-yellow-50 text-yellow-800' :
-              'border-red-300 bg-red-50 text-red-800'
+              messageType === 'success' ? 'border-emerald-500/60 bg-emerald-900/40 text-emerald-100' :
+              messageType === 'warning' ? 'border-amber-400/60 bg-amber-900/40 text-amber-100' :
+              'border-red-500/60 bg-red-900/40 text-red-100'
             }`}>
               {message}
             </div>
@@ -423,7 +651,7 @@ export default function Attendance() {
 
           <div className="overflow-y-auto max-h-72 mt-1 border-t pt-2">
             {filteredStudents.map(s => (
-              <div key={s.id} className="flex items-center justify-between py-1 border-b last:border-b-0">
+              <div key={s.id} className="flex items-center justify-between py-1 border-b border-slate-800 last:border-b-0">
                 <div className="flex items-center gap-2">
                   <div className={`h-10 w-10 rounded-full overflow-hidden border-2 ${beltBorderColor(s.current_belt)}`}>
                     {s.photo_url ? (
@@ -446,18 +674,18 @@ export default function Attendance() {
               </div>
             ))}
             {filteredStudents.length === 0 && (
-              <div className="text-xs text-gray-500">Nenhum aluno encontrado.</div>
+              <div className="text-xs text-slate-500">Nenhum aluno encontrado.</div>
             )}
           </div>
         </div>
       </div>
 
       {/* Tatame em tempo real */}
-      <section className="mt-6 border rounded-lg p-4">
+      <section className="mt-6 border border-slate-800 rounded-2xl p-4 bg-slate-900/80">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h3 className="font-semibold">Tatame em tempo real</h3>
-            <p className="text-xs text-gray-500">Alunos que já fizeram check-in nesta aula.</p>
+            <h3 className="font-semibold text-slate-50">Tatame em tempo real</h3>
+            <p className="text-xs text-slate-400">Alunos que já fizeram check-in nesta aula.</p>
           </div>
           <button
             onClick={() => {
@@ -473,7 +701,7 @@ export default function Attendance() {
         </div>
 
         {checkedInStudents.length === 0 && (
-          <div className="text-xs text-gray-500">Nenhum aluno em tatame nesta sessão ainda.</div>
+          <div className="text-xs text-slate-500">Nenhum aluno em tatame nesta sessão ainda.</div>
         )}
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 mt-2">

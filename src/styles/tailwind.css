@@ -2,10 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 html, body, #root {
   height: 100%;
 }
 
-.brand-header {
-  background: linear-gradient(90deg, #0A0A0A 0%, #0b3d91 100%);
+body {
+  @apply bg-slate-950 text-slate-50 antialiased;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
+
+.brand-header {
+  background: linear-gradient(90deg, #020617 0%, #0b3d91 100%);
+}
+

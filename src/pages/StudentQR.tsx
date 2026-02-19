@@ -161,8 +161,16 @@ export default function StudentQR() {
 
   if (!student) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white">
-        <div className="text-sm opacity-80">{loading ? 'Carregando dados do aluno...' : 'Carregando...'}</div>
+      <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white px-4 py-6">
+        <div className="w-full max-w-sm bg-slate-950 rounded-3xl shadow-2xl border border-slate-800 p-5 animate-pulse">
+          <div className="h-4 w-32 bg-slate-800 rounded mb-2" />
+          <div className="h-6 w-48 bg-slate-800 rounded mb-4" />
+          <div className="h-40 w-full bg-slate-900 rounded-2xl mb-4" />
+          <div className="h-3 w-40 bg-slate-800 rounded mb-2" />
+          <div className="h-2 w-full bg-slate-900 rounded-full mb-2" />
+          <div className="h-2 w-3/4 bg-slate-900 rounded-full" />
+          <div className="mt-4 h-3 w-1/2 bg-slate-800 rounded" />
+        </div>
       </div>
     )
   }

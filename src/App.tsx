@@ -8,6 +8,7 @@ import StudentProfile from './pages/StudentProfile'
 import StudentQR from './pages/StudentQR'
 import QRExport from './pages/QRExport'
 import Header from './components/Header'
+import Sidebar from './components/Sidebar'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
 import Finance from './pages/Finance'
@@ -57,7 +58,10 @@ function RequireAuth({ children }: { children: JSX.Element }) {
 
 function AppLayout() {
   const location = useLocation()
-  const hideHeader = location.pathname.startsWith('/meu-qr')
+  const isStudentQR = location.pathname.startsWith('/meu-qr')
+  const isKioskCheckin = location.pathname.startsWith('/checkin')
+  const isAuthPage = location.pathname === '/login' || location.pathname === '/signup'
+  const shellLess = isStudentQR || isKioskCheckin || isAuthPage
   const navigate = useNavigate()
   const { user, loading } = useAuth()
 
@@ -68,25 +72,44 @@ function AppLayout() {
     }
   }, [user, loading, location.pathname, navigate])
 
+  const routes = (
+    <Routes>
+      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
+      <Route path="/dashboard" element={<RequireAuth><Dashboard /></RequireAuth>} />
+      <Route path="/finance" element={<RequireAuth><Finance /></RequireAuth>} />
+      <Route path="/account" element={<RequireAuth><AccountSettings /></RequireAuth>} />
+      <Route path="/students" element={<RequireAuth><Students /></RequireAuth>} />
+      <Route path="/students/:id" element={<RequireAuth><StudentProfile /></RequireAuth>} />
+      <Route path="/attendance" element={<RequireAuth><Attendance /></RequireAuth>} />
+      <Route path="/checkin/:organizationId" element={<Attendance />} />
+      <Route path="/qr" element={<RequireAuth><QRExport /></RequireAuth>} />
+      <Route path="/meu-qr/:studentId" element={<StudentQR />} />
+    </Routes>
+  )
+
+  if (shellLess) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-50">
+        <main className="min-h-screen">
+          {routes}
+        </main>
+      </div>
+    )
+  }
+
   return (
-    <div className="min-h-screen bg-white text-black">
-      {!hideHeader && <Header />}
-      <main className="p-4">
-        <Routes>
-          <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/dashboard" element={<RequireAuth><Dashboard /></RequireAuth>} />
-          <Route path="/finance" element={<RequireAuth><Finance /></RequireAuth>} />
-          <Route path="/account" element={<RequireAuth><AccountSettings /></RequireAuth>} />
-          <Route path="/students" element={<RequireAuth><Students /></RequireAuth>} />
-          <Route path="/students/:id" element={<RequireAuth><StudentProfile /></RequireAuth>} />
-          <Route path="/attendance" element={<RequireAuth><Attendance /></RequireAuth>} />
-          <Route path="/checkin/:organizationId" element={<Attendance />} />
-          <Route path="/qr" element={<RequireAuth><QRExport /></RequireAuth>} />
-          <Route path="/meu-qr/:studentId" element={<StudentQR />} />
-        </Routes>
-      </main>
+    <div className="min-h-screen bg-slate-950 text-slate-50 flex">
+      <Sidebar />
+      <div className="flex-1 flex flex-col min-h-screen">
+        <header className="md:hidden">
+          <Header />
+        </header>
+        <main className="flex-1 px-4 py-4 lg:px-8 lg:py-6 bg-slate-950">
+          {routes}
+        </main>
+      </div>
     </div>
   )
 }
