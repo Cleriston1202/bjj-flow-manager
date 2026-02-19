@@ -216,11 +216,21 @@ export default function Finance() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto">
-      <h2 className="text-2xl font-bold mb-4 flex items-center gap-2"><BadgeDollarSign className="text-green-600" /> Fluxo de Caixa Mensal</h2>
+    <div className="max-w-5xl mx-auto text-slate-50">
+      <h2 className="text-2xl font-bold mb-4 flex items-center gap-2"><BadgeDollarSign className="text-emerald-400" /> Fluxo de Caixa Mensal</h2>
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <input type="month" value={selectedMonth} onChange={e=>setSelectedMonth(e.target.value)} className="border p-2 rounded" />
-        <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Buscar por nome" className="border p-2 rounded flex-1" />
+        <input
+          type="month"
+          value={selectedMonth}
+          onChange={e=>setSelectedMonth(e.target.value)}
+          className="border border-slate-700 bg-slate-950 text-slate-50 placeholder:text-slate-500 p-2 rounded"
+        />
+        <input
+          value={query}
+          onChange={e=>setQuery(e.target.value)}
+          placeholder="Buscar por nome"
+          className="border border-slate-700 bg-slate-950 text-slate-50 placeholder:text-slate-500 p-2 rounded flex-1"
+        />
         <label className="inline-flex items-center gap-2">
           <input type="checkbox" checked={onlyActive} onChange={e=>setOnlyActive(e.target.checked)} /> Somente ativos
         </label>
@@ -231,8 +241,8 @@ export default function Finance() {
       <div className="mb-4 p-3 rounded bg-red-50 border border-red-200 text-red-700">
         Total a receber dos inadimplentes: R$ {totalInadimplentes.toFixed(2)}
       </div>
-      {loading && <div className="flex items-center gap-2 text-gray-500"><Loader2 className="animate-spin" /> Carregando...</div>}
-      <div className="border rounded divide-y">
+      {loading && <div className="flex items-center gap-2 text-slate-400"><Loader2 className="animate-spin" /> Carregando...</div>}
+      <div className="border border-slate-800 rounded divide-y divide-slate-800 bg-slate-900/60">
         {rowsToDisplay.map(({ student: s, payment, status, olderUnpaid }) => (
           <div key={s.id} className="p-3 flex items-center justify-between">
             <div>
@@ -244,7 +254,7 @@ export default function Finance() {
                   </span>
                 )}
               </div>
-              <div className="text-sm text-gray-600 flex items-center gap-2 mt-1">
+              <div className="text-sm text-slate-300 flex items-center gap-2 mt-1">
                 <span className={`inline-block px-2 py-0.5 rounded ${getStatusColor(status)}`}>{getStatusLabel(status)}</span>
                 {payment && (
                   <>
@@ -268,31 +278,35 @@ export default function Finance() {
                       }}
                     >Baixa manual</button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-md w-full bg-white p-6 rounded shadow-lg">
+                  <DialogContent className="max-w-md w-full bg-white text-slate-900 p-6 rounded shadow-lg">
                     <DialogTitle className="text-lg font-bold mb-2">Baixa manual de pagamento</DialogTitle>
                     <DialogDescription className="mb-4">Confirme os dados do recebimento para <span className="font-semibold">{s.full_name}</span> referente a <span className="font-semibold">{selectedMonth}</span>.</DialogDescription>
                     <div className="mb-3">
-                      <label className="block text-sm mb-1">Valor recebido (R$)</label>
+                      <label className="block text-sm mb-1 text-slate-700">Valor recebido (R$)</label>
                       <input
                         type="number"
                         step="0.01"
-                        className="border px-3 py-2 rounded w-full"
+                        className="border border-slate-300 bg-white text-slate-900 px-3 py-2 rounded w-full"
                         value={settleAmount}
                         onChange={e => setSettleAmount(e.target.value)}
                       />
                     </div>
                     <div className="mb-3">
-                      <label className="block text-sm mb-1">Forma de Pagamento</label>
+                      <label className="block text-sm mb-1 text-slate-700">Forma de Pagamento</label>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <button className="border px-3 py-2 rounded w-full flex items-center gap-2">
+                          <button className="border border-slate-300 bg-white text-slate-900 px-3 py-2 rounded w-full flex items-center gap-2">
                             {paymentMethods.find(m=>m.label===settleMethod)?.icon}
                             {settleMethod}
                           </button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent className="bg-white border rounded shadow">
+                        <DropdownMenuContent className="bg-white border rounded shadow text-slate-900">
                           {paymentMethods.map(m => (
-                            <DropdownMenuItem key={m.label} onSelect={()=>setSettleMethod(m.label)} className="flex items-center gap-2 cursor-pointer px-2 py-1">
+                            <DropdownMenuItem
+                              key={m.label}
+                              onSelect={()=>setSettleMethod(m.label)}
+                              className="flex items-center gap-2 cursor-pointer px-2 py-1 hover:bg-slate-100"
+                            >
                               {m.icon} {m.label}
                             </DropdownMenuItem>
                           ))}
@@ -300,11 +314,16 @@ export default function Finance() {
                       </DropdownMenu>
                     </div>
                     <div className="mb-3">
-                      <label className="block text-sm mb-1">Data do Recebimento</label>
-                      <input type="date" className="border px-3 py-2 rounded w-full" value={settleDate} onChange={e=>setSettleDate(e.target.value)} />
+                      <label className="block text-sm mb-1 text-slate-700">Data do Recebimento</label>
+                      <input
+                        type="date"
+                        className="border border-slate-300 bg-white text-slate-900 px-3 py-2 rounded w-full"
+                        value={settleDate}
+                        onChange={e=>setSettleDate(e.target.value)}
+                      />
                     </div>
                     <div className="flex justify-end gap-2 mt-4">
-                      <button className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300" onClick={()=>setModal({ open: false })}>Cancelar</button>
+                      <button className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 text-slate-900" onClick={()=>setModal({ open: false })}>Cancelar</button>
                       <button
                         className="px-4 py-2 rounded bg-green-600 hover:bg-green-700 text-white"
                         disabled={settleLoading}
