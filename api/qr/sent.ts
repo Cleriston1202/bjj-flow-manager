@@ -1,5 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'http'
-import { Pool } from 'pg'
+// Usar CommonJS para compatibilidade com runtimes Node que não tratam ESM
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { Pool } = require('pg')
 
 let pool: Pool | null = null
 
@@ -17,7 +19,7 @@ function getPool() {
   return pool
 }
 
-export default async function handler(req: IncomingMessage & { method?: string }, res: ServerResponse & { json?: (body: any) => void; status?: (code: number) => any }) {
+async function handler(req: IncomingMessage & { method?: string }, res: ServerResponse & { json?: (body: any) => void; status?: (code: number) => any }) {
   if (req.method !== 'GET') {
     ;(res.status ? res.status(405) : res).end(JSON.stringify({ error: 'Method not allowed' }))
     return
@@ -47,3 +49,8 @@ export default async function handler(req: IncomingMessage & { method?: string }
     }
   }
 }
+
+// Export estilo CommonJS para runtimes que esperam module.exports
+// @ts-ignore
+module.exports = handler
+

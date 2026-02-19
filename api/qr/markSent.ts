@@ -1,6 +1,9 @@
 import type { IncomingMessage, ServerResponse } from 'http'
-import { Pool } from 'pg'
-import { randomUUID } from 'crypto'
+// Usar CommonJS para compatibilidade com runtimes Node que não tratam ESM
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { Pool } = require('pg')
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { randomUUID } = require('crypto')
 
 let pool: Pool | null = null
 
@@ -28,7 +31,7 @@ interface JsonResponse extends ServerResponse {
   status?: (code: number) => JsonResponse
 }
 
-export default async function handler(req: JsonRequest, res: JsonResponse) {
+async function handler(req: JsonRequest, res: JsonResponse) {
   if (req.method !== 'POST') {
     ;(res.status ? res.status(405) : res).end(JSON.stringify({ error: 'Method not allowed' }))
     return
@@ -75,3 +78,8 @@ export default async function handler(req: JsonRequest, res: JsonResponse) {
     }
   }
 }
+
+// Export estilo CommonJS para runtimes que esperam module.exports
+// @ts-ignore
+module.exports = handler
+
