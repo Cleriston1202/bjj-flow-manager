@@ -74,11 +74,16 @@ export default function Students() {
   const totalPages = totalCount > 0 ? Math.ceil(totalCount / PAGE_SIZE) : 1
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto text-slate-50">
       <h2 className="text-2xl font-bold mb-4">Gestão de Alunos</h2>
-      <div className="mb-4 flex justify-between">
-        <input value={query} onChange={(e)=>setQuery(e.target.value)} className="border p-2 rounded w-64" placeholder="Buscar aluno por nome" />
-        <button onClick={handleNew} className="bg-primary text-white px-4 py-2 rounded">Novo Aluno</button>
+      <div className="mb-4 flex justify-between gap-2">
+        <input
+          value={query}
+          onChange={(e)=>setQuery(e.target.value)}
+          className="border border-slate-700 bg-slate-950 text-slate-50 placeholder:text-slate-500 rounded p-2 w-64"
+          placeholder="Buscar aluno por nome"
+        />
+        <button onClick={handleNew} className="bg-primary text-white px-4 py-2 rounded shadow-sm">Novo Aluno</button>
       </div>
 
       {showForm && (
@@ -87,18 +92,24 @@ export default function Students() {
         </div>
       )}
 
-      {loading && <div>Carregando...</div>}
+      {loading && <div className="text-sm text-slate-400">Carregando...</div>}
 
       <div className="space-y-2">
         {filtered.map(s => (
-          <div key={s.id} className="p-3 border rounded flex items-center justify-between">
+          <div key={s.id} className="p-3 border border-slate-800 bg-slate-900/70 rounded-xl flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="h-12 w-12 bg-gray-100 rounded overflow-hidden flex-shrink-0">
-                {s.photo_url ? <img src={s.photo_url} alt={s.full_name} className="h-full w-full object-cover" /> : <div className="h-full w-full flex items-center justify-center text-gray-400">—</div>}
+              <div className="h-12 w-12 bg-slate-800 rounded-full overflow-hidden flex-shrink-0">
+                {s.photo_url ? (
+                  <img src={s.photo_url} alt={s.full_name} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="h-full w-full flex items-center justify-center text-slate-500">—</div>
+                )}
               </div>
               <div>
-                <div className="font-semibold"><Link to={`/students/${s.id}`} className="hover:underline">{s.full_name}</Link></div>
-                <div className="text-sm text-gray-600">Faixa: {s.current_belt || 'Branca'} • Grau: {s.current_degree ?? 0}</div>
+                <div className="font-semibold">
+                  <Link to={`/students/${s.id}`} className="hover:underline text-slate-50">{s.full_name}</Link>
+                </div>
+                <div className="text-sm text-slate-400">Faixa: {s.current_belt || 'Branca'} • Grau: {s.current_degree ?? 0}</div>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -120,10 +131,14 @@ export default function Students() {
           </div>
         ))}
 
-        {!loading && filtered.length === 0 && <div className="p-3 border rounded">Nenhum aluno encontrado.</div>}
+        {!loading && filtered.length === 0 && (
+          <div className="p-3 border border-slate-800 rounded-xl bg-slate-900/70 text-sm text-slate-400">
+            Nenhum aluno encontrado.
+          </div>
+        )}
       </div>
 
-      <div className="mt-4 flex items-center justify-between text-sm">
+      <div className="mt-4 flex items-center justify-between text-sm text-slate-300">
         <div>
           Página {page} de {totalPages}
         </div>
@@ -131,14 +146,14 @@ export default function Students() {
           <button
             disabled={page <= 1}
             onClick={() => setPage(p => Math.max(1, p - 1))}
-            className="px-3 py-1 border rounded disabled:opacity-50"
+            className="px-3 py-1 border border-slate-700 rounded bg-slate-900 disabled:opacity-50"
           >
             Anterior
           </button>
           <button
             disabled={page >= totalPages}
             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-            className="px-3 py-1 border rounded disabled:opacity-50"
+            className="px-3 py-1 border border-slate-700 rounded bg-slate-900 disabled:opacity-50"
           >
             Próxima
           </button>
