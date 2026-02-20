@@ -103,28 +103,50 @@ export default function StudentForm({
   }
 
   return (
-    <form onSubmit={handleSave} className="p-4 border rounded bg-white">
-      {error && <div className="text-red-600 mb-2">{error}</div>}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+    <form onSubmit={handleSave} className="p-4 border border-slate-800 rounded-xl bg-slate-900/80">
+      {error && <div className="text-red-500 mb-2 text-sm">{error}</div>}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-slate-50">
         <div>
-          <label className="block text-sm">Nome</label>
-          <input className="border p-2 rounded w-full" value={form.full_name} onChange={(e)=>setForm({...form, full_name: e.target.value})} required />
+          <label className="block text-sm text-slate-200">Nome</label>
+          <input
+            className="border border-slate-700 bg-slate-950 text-slate-50 placeholder:text-slate-500 p-2 rounded w-full"
+            value={form.full_name}
+            onChange={(e)=>setForm({...form, full_name: e.target.value})}
+            required
+          />
         </div>
         <div>
-          <label className="block text-sm">Data de Nascimento</label>
-          <input type="date" className="border p-2 rounded w-full" value={form.dob || ''} onChange={(e)=>setForm({...form, dob: e.target.value})} />
+          <label className="block text-sm text-slate-200">Data de Nascimento</label>
+          <input
+            type="date"
+            className="border border-slate-700 bg-slate-950 text-slate-50 placeholder:text-slate-500 p-2 rounded w-full"
+            value={form.dob || ''}
+            onChange={(e)=>setForm({...form, dob: e.target.value})}
+          />
         </div>
         <div>
-          <label className="block text-sm">E-mail</label>
-          <input className="border p-2 rounded w-full" value={form.contact?.email || ''} onChange={(e)=>setForm({...form, contact: {...form.contact, email: e.target.value}})} />
+          <label className="block text-sm text-slate-200">E-mail</label>
+          <input
+            className="border border-slate-700 bg-slate-950 text-slate-50 placeholder:text-slate-500 p-2 rounded w-full"
+            value={form.contact?.email || ''}
+            onChange={(e)=>setForm({...form, contact: {...form.contact, email: e.target.value}})}
+          />
         </div>
         <div>
-          <label className="block text-sm">Telefone</label>
-          <input className="border p-2 rounded w-full" value={form.contact?.phone || ''} onChange={(e)=>setForm({...form, contact: {...form.contact, phone: e.target.value}})} />
+          <label className="block text-sm text-slate-200">Telefone</label>
+          <input
+            className="border border-slate-700 bg-slate-950 text-slate-50 placeholder:text-slate-500 p-2 rounded w-full"
+            value={form.contact?.phone || ''}
+            onChange={(e)=>setForm({...form, contact: {...form.contact, phone: e.target.value}})}
+          />
         </div>
         <div>
-          <label className="block text-sm">Faixa atual</label>
-          <select className="border p-2 rounded w-full" value={form.current_belt} onChange={(e)=>setForm({...form, current_belt: e.target.value})}>
+          <label className="block text-sm text-slate-200">Faixa atual</label>
+          <select
+            className="border border-slate-700 bg-slate-950 text-slate-50 p-2 rounded w-full"
+            value={form.current_belt}
+            onChange={(e)=>setForm({...form, current_belt: e.target.value})}
+          >
             <option>Branca</option>
             <option>Azul</option>
             <option>Roxa</option>
@@ -133,26 +155,49 @@ export default function StudentForm({
           </select>
         </div>
         <div>
-          <label className="block text-sm">Grau</label>
-          <input type="number" min={0} max={4} className="border p-2 rounded w-full" value={form.current_degree ?? 0} onChange={(e)=>setForm({...form, current_degree: Number(e.target.value)})} />
+          <label className="block text-sm text-slate-200">Grau</label>
+          <input
+            type="number"
+            min={0}
+            max={4}
+            className="border border-slate-700 bg-slate-950 text-slate-50 p-2 rounded w-full"
+            value={form.current_degree ?? 0}
+            onChange={(e)=>setForm({...form, current_degree: Number(e.target.value)})}
+          />
         </div>
         <div className="md:col-span-2">
-          <label className="block text-sm">Foto (URL)</label>
-          <input className="border p-2 rounded w-full mb-2" value={form.photo_url || ''} onChange={(e)=>setForm({...form, photo_url: e.target.value})} />
+          <label className="block text-sm text-slate-200">Foto (URL)</label>
+          <input
+            className="border border-slate-700 bg-slate-950 text-slate-50 placeholder:text-slate-500 p-2 rounded w-full mb-2"
+            value={form.photo_url || ''}
+            onChange={(e)=>setForm({...form, photo_url: e.target.value})}
+          />
           <div className="flex items-center gap-2">
             <input type="file" accept="image/*" onChange={(e)=>{
               const f = e.target.files?.[0] || null
               setFile(f)
               if (f) setPreview(URL.createObjectURL(f))
             }} />
-            {preview && <img src={preview} alt="preview" className="h-16 w-16 object-cover rounded" />}
+            {preview && <img src={preview} alt="preview" className="h-16 w-16 object-cover rounded border border-slate-700" />}
           </div>
         </div>
       </div>
 
       <div className="mt-4 flex gap-2">
-        <button type="submit" disabled={loading} className="bg-primary text-white px-4 py-2 rounded">{loading? 'Salvando...' : 'Salvar'}</button>
-        <button type="button" onClick={onCancel} className="px-4 py-2 border rounded">Cancelar</button>
+        <button
+          type="submit"
+          disabled={loading}
+          className="bg-primary text-white px-4 py-2 rounded shadow-sm disabled:opacity-60"
+        >
+          {loading? 'Salvando...' : 'Salvar'}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-4 py-2 border border-slate-700 rounded bg-slate-900 text-slate-100 hover:bg-slate-800"
+        >
+          Cancelar
+        </button>
       </div>
     </form>
   )
