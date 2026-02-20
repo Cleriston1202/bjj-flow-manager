@@ -2,7 +2,6 @@ const express = require('express')
 const cors = require('cors')
 const path = require('path')
 const { Pool } = require('pg')
-const { randomUUID } = require('crypto')
 require('dotenv').config()
 
 const app = express()
@@ -257,29 +256,68 @@ app.get('/api/payments', async (req, res) => {
   }
 })
 
-app.get('/api/qr/sent', async (req, res) => {
+app.post('/api/whatsapp/send-qrcode', async (req, res) => {
   try {
-    await pool.query('CREATE TABLE IF NOT EXISTS qr_notifications (id uuid PRIMARY KEY, student_id uuid, sent_at timestamptz DEFAULT now(), message text, qrcode_url text)')
-    const r = await pool.query('SELECT student_id FROM qr_notifications')
-    res.json({ sent: r.rows.map(x => x.student_id) })
-  } catch (e) {
-    console.error('Erro em /api/qr/sent:', e.message)
-    // Falha no log de envios de QR não deve quebrar o painel.
-    // Devolvemos lista vazia para o frontend seguir funcionando.
-    res.json({ sent: [] })
-  }
-})
-
-app.post('/api/qr/markSent', async (req, res) => {
-  try {
-    const { studentId, qrcodeUrl, message } = req.body || {}
-    if (!studentId) {
-      res.status(400).json({ error: 'studentId required' })
+    const { phone, message, qrcodeImageUrl } = req.body || {}
+    if (!phone || !message) {
+      res.status(400).json({ error: 'phone and message are required' })
       return
     }
-    await pool.query('CREATE TABLE IF NOT EXISTS qr_notifications (id uuid PRIMARY KEY, student_id uuid, sent_at timestamptz DEFAULT now(), message text, qrcode_url text)')
-    await pool.query('INSERT INTO qr_notifications (id, student_id, message, qrcode_url) VALUES ($1, $2, $3, $4)', [randomUUID(), studentId, message || '', qrcodeUrl || ''])
-    res.json({ success: true })
+
+    const provider = String(process.env.WHATSAPP_PROVIDER || '').toLowerCase()
+    if (provider !== 'evolution') {
+      res.status(501).json({ error: 'No WhatsApp provider configured' })
+      return
+    }
+
+    const baseUrl = process.env.EVOLUTION_API_URL
+    const apiKey = process.env.EVOLUTION_API_KEY
+    const instance = process.env.EVOLUTION_INSTANCE
+
+    if (!baseUrl || !apiKey || !instance) {
+      res.status(500).json({ error: 'Evolution API env vars are missing' })
+      return
+    }
+
+    if (qrcodeImageUrl) {
+      const mediaEndpoint = `${baseUrl.replace(/\/$/, '')}/message/sendMedia/${instance}`
+      const mediaRes = await fetch(mediaEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: apiKey,
+        },
+        body: JSON.stringify({
+          number: phone,
+          mediatype: 'image',
+          media: qrcodeImageUrl,
+          caption: message,
+        }),
+      })
+
+      if (mediaRes.ok) {
+        res.json({ success: true, mode: 'media' })
+        return
+      }
+    }
+
+    const endpoint = `${baseUrl.replace(/\/$/, '')}/message/sendText/${instance}`
+    const evolutionRes = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: apiKey,
+      },
+      body: JSON.stringify({ number: phone, text: message }),
+    })
+
+    if (!evolutionRes.ok) {
+      const errTxt = await evolutionRes.text()
+      res.status(502).json({ error: `Evolution API error: ${errTxt}` })
+      return
+    }
+
+    res.json({ success: true, mode: 'text' })
   } catch (e) {
     res.status(500).json({ error: e.message })
   }
