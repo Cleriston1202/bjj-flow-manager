@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { supabase, isSupabaseConfigured, handleSupabaseAuthError, wasManualLogout, clearSessionExpiredFlag } from './supabaseClient'
+import { supabase, isSupabaseConfigured, handleSupabaseAuthError, wasManualLogout, clearSessionExpiredFlag, markSessionExpiredMessage } from './supabaseClient'
 
 export interface TenantInfo {
   organizationId: string
@@ -172,11 +172,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
             const manual = wasManualLogout()
             if (!manual && window.location.pathname !== '/login') {
-              try {
-                window.alert('Sua sessão expirou. Por favor, faça login novamente para continuar.')
-              } catch {
-                // ignore alert errors
-              }
+              markSessionExpiredMessage('Sua sessão expirou por segurança. Faça login novamente para continuar.')
               window.location.href = '/login'
             }
           }

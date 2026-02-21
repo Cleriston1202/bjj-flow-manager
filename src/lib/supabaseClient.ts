@@ -38,6 +38,7 @@ export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey)
 // Flags usados para diferenciar logout manual de expiração e para evitar múltiplos alerts
 const MANUAL_LOGOUT_FLAG = 'bondade_manual_logout'
 const SESSION_EXPIRED_FLAG = 'bondade_session_expired'
+const SESSION_EXPIRED_MESSAGE_KEY = 'bondade_session_expired_message'
 
 function makeStub() {
   const stubQuery = {
@@ -105,9 +106,37 @@ export function clearSessionExpiredFlag() {
   if (typeof window === 'undefined') return
   try {
     window.sessionStorage.removeItem(SESSION_EXPIRED_FLAG)
+    window.sessionStorage.removeItem(SESSION_EXPIRED_MESSAGE_KEY)
   } catch {
     // ignore storage errors
   }
+}
+
+export function markSessionExpiredMessage(message?: string) {
+  if (typeof window === 'undefined') return
+  try {
+    window.sessionStorage.setItem(SESSION_EXPIRED_FLAG, '1')
+    window.sessionStorage.setItem(
+      SESSION_EXPIRED_MESSAGE_KEY,
+      message || 'Sua sessão expirou. Entre novamente para continuar.'
+    )
+  } catch {
+    // ignore storage errors
+  }
+}
+
+export function consumeSessionExpiredMessage(): string | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const message = window.sessionStorage.getItem(SESSION_EXPIRED_MESSAGE_KEY)
+    if (message) {
+      window.sessionStorage.removeItem(SESSION_EXPIRED_MESSAGE_KEY)
+      return message
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return null
 }
 
 // Tratamento centralizado de erros de autenticação vindos do Supabase
@@ -120,7 +149,7 @@ export function handleSupabaseAuthError(error: any): boolean {
     try {
       const alreadyHandled = window.sessionStorage.getItem(SESSION_EXPIRED_FLAG) === '1'
       if (alreadyHandled) return true
-      window.sessionStorage.setItem(SESSION_EXPIRED_FLAG, '1')
+      markSessionExpiredMessage('Sua sessão expirou. Faça login novamente para continuar no app.')
     } catch {
       // ignore storage errors
     }
@@ -135,11 +164,6 @@ export function handleSupabaseAuthError(error: any): boolean {
   }
 
   if (typeof window !== 'undefined') {
-    try {
-      window.alert('Sua sessão expirou. Por favor, faça login novamente para continuar.')
-    } catch {
-      // ignore alert errors
-    }
     window.location.href = '/login'
   }
 

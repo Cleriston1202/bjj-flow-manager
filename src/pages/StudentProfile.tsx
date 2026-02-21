@@ -8,6 +8,9 @@ export default function StudentProfile() {
   const [history, setHistory] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+  const [showResetModal, setShowResetModal] = useState(false)
+  const [temporaryPassword, setTemporaryPassword] = useState('')
+  const [resetLoading, setResetLoading] = useState(false)
 
   async function fetchData() {
     if (!id) return
@@ -67,6 +70,43 @@ export default function StudentProfile() {
     }
   }
 
+  async function handleManualResetPassword() {
+    if (!id || !temporaryPassword) return
+    setMsg(null)
+    setResetLoading(true)
+    try {
+      const { data: sessionData } = await (supabase as any).auth.getSession()
+      const accessToken = sessionData?.session?.access_token
+      if (!accessToken) {
+        setMsg('Sessão inválida. Faça login novamente.')
+        return
+      }
+
+      const res = await fetch('/api/adminResetPassword', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ studentId: id, newPassword: temporaryPassword }),
+      })
+
+      const json = await res.json()
+      if (!res.ok) {
+        setMsg(json.error || 'Erro ao resetar senha.')
+        return
+      }
+
+      setMsg('Senha temporária atualizada com sucesso.')
+      setTemporaryPassword('')
+      setShowResetModal(false)
+    } catch (err: any) {
+      setMsg(err?.message || 'Erro ao resetar senha.')
+    } finally {
+      setResetLoading(false)
+    }
+  }
+
   if (!id) return <div>Aluno não informado.</div>
 
   return (
@@ -88,7 +128,52 @@ export default function StudentProfile() {
           </div>
 
           <div className="mt-4">
-            <button onClick={handleAward} className="bg-primary text-white px-4 py-2 rounded">Premiar Grau/Faixa</button>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={handleAward} className="bg-primary text-white px-4 py-2 rounded">Premiar Grau/Faixa</button>
+              <button
+                onClick={() => setShowResetModal(true)}
+                className="px-4 py-2 rounded border border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800"
+              >
+                Resetar Senha
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showResetModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="w-full max-w-md rounded-xl border border-slate-700 bg-slate-900 p-4">
+            <h3 className="text-lg font-semibold mb-2">Resetar Senha do Aluno</h3>
+            <p className="text-sm text-slate-300 mb-3">Defina uma senha temporária para o aluno.</p>
+            <input
+              type="password"
+              value={temporaryPassword}
+              onChange={(e) => setTemporaryPassword(e.target.value)}
+              className="w-full border border-slate-700 bg-slate-950 text-slate-50 rounded p-2"
+              placeholder="Nova senha temporária"
+              minLength={6}
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  if (resetLoading) return
+                  setShowResetModal(false)
+                  setTemporaryPassword('')
+                }}
+                className="px-4 py-2 rounded border border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800"
+                disabled={resetLoading}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleManualResetPassword}
+                disabled={resetLoading || temporaryPassword.length < 6}
+                className="px-4 py-2 rounded bg-primary text-white disabled:opacity-60"
+              >
+                {resetLoading ? 'Salvando...' : 'Confirmar Reset'}
+              </button>
+            </div>
           </div>
         </div>
       )}

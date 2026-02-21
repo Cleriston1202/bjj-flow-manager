@@ -11,10 +11,32 @@ import Header from './components/Header'
 import Sidebar from './components/Sidebar'
 import Login from './pages/Login'
 import Signup from './pages/Signup'
+import ForgotPassword from './pages/ForgotPassword'
 import Finance from './pages/Finance'
 import AccountSettings from './pages/AccountSettings'
 import { useAuth } from './lib/AuthContext'
 import { supabase, isSupabaseConfigured } from './lib/supabaseClient'
+
+function hasRecoveryParams(location: { search: string; hash: string }) {
+  const query = new URLSearchParams(location.search)
+  const hashRaw = location.hash.startsWith('#') ? location.hash.slice(1) : location.hash
+  const hash = new URLSearchParams(hashRaw)
+  const type = query.get('type') || hash.get('type') || ''
+  const hasToken = !!(
+    query.get('token_hash') ||
+    query.get('token') ||
+    hash.get('token_hash') ||
+    hash.get('token') ||
+    hash.get('access_token') ||
+    query.get('access_token') ||
+    query.get('refresh_token') ||
+    hash.get('refresh_token') ||
+    query.get('code') ||
+    hash.get('code')
+  )
+  const hasRecoveryHint = type === 'recovery' || query.get('redirect_to')?.includes('forgot-password') || false
+  return hasToken || hasRecoveryHint
+}
 
 function RequireAuth({ children }: { children: JSX.Element }) {
   const { user, loading } = useAuth()
@@ -60,23 +82,36 @@ function AppLayout() {
   const location = useLocation()
   const isStudentQR = location.pathname.startsWith('/meu-qr')
   const isKioskCheckin = location.pathname.startsWith('/checkin')
-  const isAuthPage = location.pathname === '/login' || location.pathname === '/signup'
+  const isAuthPage = location.pathname === '/login' || location.pathname === '/signup' || location.pathname === '/forgot-password'
   const shellLess = isStudentQR || isKioskCheckin || isAuthPage
   const navigate = useNavigate()
   const { user, loading } = useAuth()
 
   React.useEffect(() => {
+    if (location.pathname !== '/forgot-password' && hasRecoveryParams(location)) {
+      navigate(`/forgot-password${location.search}${location.hash}`, { replace: true })
+      return
+    }
+
     if (loading) return
     if (user && (location.pathname === '/login' || location.pathname === '/signup' || location.pathname === '/')) {
       navigate('/dashboard', { replace: true })
     }
-  }, [user, loading, location.pathname, navigate])
+  }, [user, loading, location.pathname, location.search, location.hash, navigate])
 
   const routes = (
     <Routes>
-      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route
+        path="/"
+        element={
+          hasRecoveryParams(location)
+            ? <Navigate to={`/forgot-password${location.search}${location.hash}`} replace />
+            : <Navigate to="/login" replace />
+        }
+      />
       <Route path="/login" element={<Login />} />
       <Route path="/signup" element={<Signup />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/dashboard" element={<RequireAuth><Dashboard /></RequireAuth>} />
       <Route path="/finance" element={<RequireAuth><Finance /></RequireAuth>} />
       <Route path="/account" element={<RequireAuth><AccountSettings /></RequireAuth>} />

@@ -8,7 +8,7 @@ export interface Student {
   full_name: string
   photo_url?: string
   dob?: string
-  contact?: { phone?: string; email?: string }
+  contact?: { phone?: string; email?: string; cpf?: string }
   current_belt?: string
   current_degree?: number
   created_at?: string
@@ -138,6 +138,15 @@ export default function StudentForm({
             className="border border-slate-700 bg-slate-950 text-slate-50 placeholder:text-slate-500 p-2 rounded w-full"
             value={form.contact?.phone || ''}
             onChange={(e)=>setForm({...form, contact: {...form.contact, phone: e.target.value}})}
+          />
+        </div>
+        <div>
+          <label className="block text-sm text-slate-200">CPF</label>
+          <input
+            className="border border-slate-700 bg-slate-950 text-slate-50 placeholder:text-slate-500 p-2 rounded w-full"
+            value={form.contact?.cpf || ''}
+            onChange={(e)=>setForm({...form, contact: {...form.contact, cpf: e.target.value}})}
+            placeholder="000.000.000-00"
           />
         </div>
         <div>
