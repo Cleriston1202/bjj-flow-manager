@@ -247,18 +247,19 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <section className="mb-8 p-4 border rounded-lg bg-white">
-        <h3 className="text-xl font-semibold mb-2 text-gray-800">Frequência dos últimos 7 dias</h3>
+      <section className="mb-8 p-6 border rounded-xl bg-white shadow-sm">
+        <h3 className="text-2xl font-bold mb-1 text-gray-800">Frequência dos últimos 7 dias</h3>
+        <p className="text-sm text-gray-500 mb-4">Evolução diária de presenças da semana.</p>
         <div className="overflow-x-auto">
-          <div className="grid grid-cols-7 gap-2 items-end h-36 min-w-[420px]">
+          <div className="grid grid-cols-7 gap-3 items-end h-48 min-w-[520px]">
             {attendanceLast7Days.map((p) => {
               const max = Math.max(1, ...attendanceLast7Days.map((d) => d.count))
               const height = Math.max(8, Math.round((p.count / max) * 100))
               return (
-                <div key={p.day} className="flex flex-col items-center justify-end">
-                  <div className="text-[10px] text-gray-500 mb-1">{p.count}</div>
-                  <div className="w-8 bg-red-500 rounded-t" style={{ height: `${height}%` }} />
-                  <div className="text-[10px] text-gray-500 mt-1 text-center">{p.day}</div>
+                <div key={p.day} className="flex flex-col items-center justify-end bg-gray-50 rounded-lg p-2 h-full">
+                  <div className="text-sm font-semibold text-gray-700 mb-2">{p.count}</div>
+                  <div className="w-10 bg-gradient-to-t from-red-500 to-red-400 rounded-t-md" style={{ height: `${height}%` }} />
+                  <div className="text-xs sm:text-sm font-medium text-gray-600 mt-2 text-center">{p.day}</div>
                 </div>
               )
             })}

@@ -20,8 +20,22 @@ function buildCheckinUrl(studentId: string) {
   return `${appBase}/checkin/${studentId}`
 }
 
-function buildStudentQrUrl(studentId: string) {
+async function buildStudentQrUrl(studentId: string) {
   const appBase = getBaseUrl()
+  try {
+    const response = await fetch('/api/qr/createPublicLink', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ studentId, expiresInDays: 180 }),
+    })
+    if (response.ok) {
+      const json = await response.json().catch(() => null)
+      const publicUrl = String(json?.publicUrl || '')
+      if (publicUrl) return publicUrl
+    }
+  } catch {
+    // fallback para manter compatibilidade
+  }
   return `${appBase}/meu-qr/${studentId}`
 }
 
@@ -108,9 +122,9 @@ export default function QRExport() {
                     }
 
                     const checkinUrl = buildCheckinUrl(s.id)
-                    const studentQrUrl = buildStudentQrUrl(s.id)
-                    const qrcodeImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=${encodeURIComponent(s.id)}`
-                    const msg = `Olá ${s.full_name}, aqui está seu QR Code de acesso à academia: ${studentQrUrl}\nLink de check-in: ${checkinUrl}`
+                    const studentQrUrl = await buildStudentQrUrl(s.id)
+                    const qrcodeImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=${encodeURIComponent(studentQrUrl)}`
+                    const msg = `Olá ${s.full_name}, aqui está seu link do QR Code de acesso à academia: ${studentQrUrl}\nLink de check-in: ${checkinUrl}`
 
                     try {
                       const integrated = await fetch('/api/whatsapp/send-qrcode', {
