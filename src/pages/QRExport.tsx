@@ -20,13 +20,22 @@ function buildCheckinUrl(studentId: string) {
   return `${appBase}/checkin/${studentId}`
 }
 
-async function buildStudentQrUrl(studentId: string) {
+async function buildStudentQrUrl(studentId: string, student?: any) {
   const appBase = getBaseUrl()
   try {
     const response = await fetch('/api/qr/createPublicLink', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ studentId, expiresInDays: 180 }),
+      body: JSON.stringify({
+        studentId,
+        expiresInDays: 180,
+        studentSnapshot: {
+          full_name: String(student?.full_name || ''),
+          current_belt: String(student?.current_belt || 'Branca'),
+          current_degree: Number(student?.current_degree || 0),
+          photo_url: student?.photo_url || null,
+        },
+      }),
     })
     if (response.ok) {
       const json = await response.json().catch(() => null)
@@ -56,7 +65,7 @@ export default function QRExport() {
     }
     let q = supabase
       .from('students')
-      .select('id, full_name, photo_url, active, contact')
+      .select('id, full_name, current_belt, current_degree, photo_url, active, contact')
       .eq('organization_id', tenant.organizationId)
       .order('full_name', { ascending: true })
     if (onlyActive) q = q.eq('active', true)
@@ -122,7 +131,7 @@ export default function QRExport() {
                     }
 
                     const checkinUrl = buildCheckinUrl(s.id)
-                    const studentQrUrl = await buildStudentQrUrl(s.id)
+                    const studentQrUrl = await buildStudentQrUrl(s.id, s)
                     const qrcodeImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=${encodeURIComponent(studentQrUrl)}`
                     const msg = `Olá ${s.full_name}, aqui está seu link do QR Code de acesso à academia: ${studentQrUrl}\nLink de check-in: ${checkinUrl}`
 

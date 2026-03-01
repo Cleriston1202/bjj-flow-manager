@@ -80,6 +80,7 @@ export default async function handler(req: any, res: any) {
 
     const { SUPABASE_URL, SUPABASE_SERVER_KEY, QR_PUBLIC_TOKEN_SECRET } = getConfig()
     let studentId = ''
+    let tokenStudentSnapshot: any = null
 
     if (token) {
       const payload = verifyPayload(token, QR_PUBLIC_TOKEN_SECRET)
@@ -90,6 +91,7 @@ export default async function handler(req: any, res: any) {
       }
 
       studentId = String(payload.sid)
+      tokenStudentSnapshot = payload.student || null
     } else if (legacyStudentId) {
       studentId = legacyStudentId
     } else {
@@ -106,7 +108,28 @@ export default async function handler(req: any, res: any) {
       .maybeSingle()
 
     if (sErr || !student || student.active === false) {
-      res.status(404).json({ error: 'Aluno não encontrado.' })
+      if (!tokenStudentSnapshot) {
+        res.status(404).json({ error: 'Aluno não encontrado.' })
+        return
+      }
+
+      const { start } = getCurrentMonthRange()
+      res.status(200).json({
+        success: true,
+        fallback: true,
+        student: {
+          id: studentId,
+          full_name: String(tokenStudentSnapshot.full_name || 'Aluno'),
+          current_belt: String(tokenStudentSnapshot.current_belt || 'Branca'),
+          current_degree: Number(tokenStudentSnapshot.current_degree || 0),
+          photo_url: tokenStudentSnapshot.photo_url || null,
+        },
+        classesThisMonth: 0,
+        paymentStatus: 'pending',
+        nextDueDate: null,
+        progressPercent: 0,
+        monthStart: start,
+      })
       return
     }
 

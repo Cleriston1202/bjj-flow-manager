@@ -122,6 +122,7 @@ function AppLayout() {
       <Route path="/classes" element={<RequireAuth><ClassSchedules /></RequireAuth>} />
       <Route path="/checkin/:organizationId" element={<Attendance />} />
       <Route path="/qr" element={<RequireAuth><QRExport /></RequireAuth>} />
+      <Route path="/meu-qr" element={<StudentQR />} />
       <Route path="/meu-qr/:studentId" element={<StudentQR />} />
     </Routes>
   )

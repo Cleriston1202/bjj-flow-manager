@@ -1,4 +1,3 @@
-import { createClient } from '@supabase/supabase-js'
 import { createHmac } from 'crypto'
 
 function getBaseUrl(req: any) {
@@ -13,21 +12,17 @@ function getBaseUrl(req: any) {
 }
 
 function getConfig() {
-  const SUPABASE_URL =
-    process.env.SUPABASE_URL ||
-    process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    process.env.VITE_SUPABASE_URL
-  const SUPABASE_SERVER_KEY =
+  const QR_PUBLIC_TOKEN_SECRET =
+    process.env.QR_PUBLIC_TOKEN_SECRET ||
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     process.env.VITE_SUPABASE_ANON_KEY
-  const QR_PUBLIC_TOKEN_SECRET = process.env.QR_PUBLIC_TOKEN_SECRET || SUPABASE_SERVER_KEY
 
-  if (!SUPABASE_URL || !SUPABASE_SERVER_KEY || !QR_PUBLIC_TOKEN_SECRET) {
+  if (!QR_PUBLIC_TOKEN_SECRET) {
     throw new Error('Configuração ausente para gerar link público de QR')
   }
 
-  return { SUPABASE_URL, SUPABASE_SERVER_KEY, QR_PUBLIC_TOKEN_SECRET }
+  return { QR_PUBLIC_TOKEN_SECRET }
 }
 
 function signPayload(payload: Record<string, any>, secret: string) {
@@ -43,36 +38,28 @@ export default async function handler(req: any, res: any) {
   }
 
   try {
-    const { studentId, expiresInDays } = req.body || {}
+    const { studentId, expiresInDays, studentSnapshot } = req.body || {}
     if (!studentId) {
       res.status(400).json({ error: 'studentId is required' })
       return
     }
 
-    const { SUPABASE_URL, SUPABASE_SERVER_KEY, QR_PUBLIC_TOKEN_SECRET } = getConfig()
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVER_KEY)
-
-    // Validação de existência é opcional para evitar falha por permissões em ambientes sem service role.
-    try {
-      const { data: student } = await supabase
-        .from('students')
-        .select('id')
-        .eq('id', studentId)
-        .maybeSingle()
-
-      if (!student) {
-        res.status(404).json({ error: 'Aluno não encontrado para gerar link.' })
-        return
-      }
-    } catch {
-      // segue com geração do token; a validação final ocorre em /api/qr/publicStudent
-    }
+    const { QR_PUBLIC_TOKEN_SECRET } = getConfig()
 
     const days = Number(expiresInDays)
     const safeDays = Number.isFinite(days) && days > 0 ? Math.min(days, 365) : 180
     const exp = Date.now() + safeDays * 24 * 60 * 60 * 1000
 
-    const token = signPayload({ sid: studentId, exp }, QR_PUBLIC_TOKEN_SECRET)
+    const snapshot = studentSnapshot && typeof studentSnapshot === 'object'
+      ? {
+          full_name: String(studentSnapshot.full_name || ''),
+          current_belt: String(studentSnapshot.current_belt || 'Branca'),
+          current_degree: Number(studentSnapshot.current_degree || 0),
+          photo_url: studentSnapshot.photo_url ? String(studentSnapshot.photo_url) : null,
+        }
+      : null
+
+    const token = signPayload({ sid: studentId, exp, student: snapshot }, QR_PUBLIC_TOKEN_SECRET)
     const baseUrl = getBaseUrl(req)
     const publicUrl = `${baseUrl}/meu-qr?t=${encodeURIComponent(token)}`
 
