@@ -42,6 +42,22 @@ function getStatusColor(status: string) {
   }
 }
 
+function isStudentActive(student: any) {
+  const status = String(student?.contact?.status || '')
+  return student?.active !== false && status !== 'Cancelado'
+}
+
+function getMonthPayment(payments: any[], month: string) {
+  const sameMonth = (payments || []).filter((p: any) => (p.start_date || '').slice(0, 7) === month)
+  if (sameMonth.length === 0) return null
+  const ordered = [...sameMonth].sort((a: any, b: any) => {
+    const ta = new Date(a.created_at || 0).getTime()
+    const tb = new Date(b.created_at || 0).getTime()
+    return tb - ta
+  })
+  return ordered[0]
+}
+
 const paymentMethods = [
   { label: 'Pix', icon: <CreditCard size={16} className="inline mr-1" /> },
   { label: 'Dinheiro', icon: <Banknote size={16} className="inline mr-1" /> },
@@ -143,7 +159,7 @@ export default function Finance() {
       const paymentsForMonth = Array.isArray(pdata) ? pdata : []
       const toInsert: any[] = []
       for (const s of Object.values(students)) {
-        if (!s.active) continue
+        if (!isStudentActive(s)) continue
         const hasPayment = paymentsForMonth.some((p: any) => p.student_id === s.id)
         if (!hasPayment) {
           const dueDay = Math.max(1, Math.min(31, Number(s.contact?.due_day ?? 10)))
@@ -182,15 +198,19 @@ export default function Finance() {
   }
 
   // Gerar linhas para exibição
-  const studentsList = Object.values(students).filter((s: any) => (onlyActive ? s.active !== false : true)).filter((s: any) => ((s.full_name || '').toLowerCase().includes(query.toLowerCase())))
+  const allStudents = Object.values(students)
+  const studentsList = allStudents
+    .filter((s: any) => (onlyActive ? isStudentActive(s) : true))
+    .filter((s: any) => ((s.full_name || '').toLowerCase().includes(query.toLowerCase())))
   const rows = studentsList.map((s: any) => {
     const allPayments = paymentsByStudent[s.id] || []
-    // Pega o pagamento do mês selecionado
-    const payment = allPayments.find((p: any) => (p.start_date || '').startsWith(selectedMonth))
+    // Pega o pagamento mais recente do mês selecionado
+    const payment = getMonthPayment(allPayments, selectedMonth)
     // Conta quantos meses anteriores estão em aberto
     const olderUnpaid = allPayments.filter((p: any) => getPaymentStatus(p) !== 'paid' && (p.start_date || '').slice(0,7) < selectedMonth).length
     const status = getPaymentStatus(payment)
-    return { student: s, payment, status, olderUnpaid }
+    const amountBase = Number(payment?.amount ?? s.contact?.monthly_fee ?? s.monthly_fee ?? 0)
+    return { student: s, payment, status, olderUnpaid, amountBase }
   })
   const rowsSorted = [...rows].sort((a, b) => {
     const order = (st: string) => st === 'delinquent' ? 0 : st === 'late' ? 1 : st === 'pending' ? 2 : 3
@@ -202,10 +222,10 @@ export default function Finance() {
     return an.localeCompare(bn)
   })
   const rowsToDisplay = onlyDelinquent ? rowsSorted.filter(r => r.status === 'delinquent') : rowsSorted
-  const totalInadimplentes = rows.filter(r => r.status === 'delinquent').reduce((sum, r) => sum + Number(r.payment?.amount ?? 0), 0)
-  const totalRecebidoMes = rows.reduce((sum, r) => (r.status === 'paid' ? sum + Number(r.payment?.amount ?? 0) : sum), 0)
-  const totalAbertoMes = rows.reduce((sum, r) => (r.status !== 'paid' ? sum + Number(r.payment?.amount ?? 0) : sum), 0)
-  const totalAtivos = studentsList.filter((s: any) => s.active !== false).length
+  const totalInadimplentes = rows.filter(r => r.status === 'delinquent').reduce((sum, r) => sum + r.amountBase, 0)
+  const totalRecebidoMes = rows.reduce((sum, r) => (r.status === 'paid' ? sum + r.amountBase : sum), 0)
+  const totalAbertoMes = rows.reduce((sum, r) => (r.status !== 'paid' ? sum + r.amountBase : sum), 0)
+  const totalAtivos = allStudents.filter((s: any) => isStudentActive(s)).length
   const totalInadimplentesQtd = rows.filter((r) => r.status === 'delinquent').length
 
   // Baixa manual
@@ -315,7 +335,7 @@ export default function Finance() {
           value={query}
           onChange={e=>setQuery(e.target.value)}
           placeholder="Buscar por nome"
-          className="border border-slate-700 bg-slate-950 text-slate-50 placeholder:text-slate-500 p-2 rounded flex-1"
+          className="border border-slate-700 bg-slate-950 text-slate-50 placeholder:text-slate-500 p-2 rounded w-full sm:flex-1"
         />
         <label className="inline-flex items-center gap-2">
           <input type="checkbox" checked={onlyActive} onChange={e=>setOnlyActive(e.target.checked)} /> Somente ativos
@@ -351,8 +371,8 @@ export default function Finance() {
       {loading && <div className="flex items-center gap-2 text-slate-400"><Loader2 className="animate-spin" /> Carregando...</div>}
       <div className="border border-slate-800 rounded divide-y divide-slate-800 bg-slate-900/60">
         {rowsToDisplay.map(({ student: s, payment, status, olderUnpaid }) => (
-          <div key={s.id} className="p-3 flex items-center justify-between">
-            <div>
+          <div key={s.id} className="p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div className="min-w-0">
               <div className="font-semibold flex items-center gap-2">
                 <User size={18} className="inline text-blue-600" /> {s.full_name}
                 {olderUnpaid > 0 && (
@@ -361,7 +381,7 @@ export default function Finance() {
                   </span>
                 )}
               </div>
-              <div className="text-sm text-slate-300 flex items-center gap-2 mt-1">
+              <div className="text-sm text-slate-300 flex flex-wrap items-center gap-2 mt-1">
                 <span className={`inline-block px-2 py-0.5 rounded ${getStatusColor(status)}`}>{getStatusLabel(status)}</span>
                 {payment && (
                   <>
@@ -371,7 +391,7 @@ export default function Finance() {
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 md:justify-end">
               {status !== 'paid' && payment && (
                 <Dialog open={modal.open && modal.payment?.id === payment.id} onOpenChange={open => setModal(open ? { open, payment, student: s } : { open: false })}>
                   <DialogTrigger asChild>
@@ -457,7 +477,7 @@ export default function Finance() {
             {(paymentsByStudent[historyOpenFor] || [])
               .sort((a: any, b: any) => String(b.start_date).localeCompare(String(a.start_date)))
               .map((p: any) => (
-                <div key={p.id} className="flex items-center justify-between border-b border-slate-800 pb-1">
+                <div key={p.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 border-b border-slate-800 pb-1">
                   <span>{String(p.start_date || '').slice(0,7)} • Venc: {p.end_date || '-'}</span>
                   <span>{getStatusLabel(getPaymentStatus(p))} • R$ {Number(p.amount ?? 0).toFixed(2)}</span>
                 </div>

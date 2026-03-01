@@ -4,6 +4,22 @@ import { useAuth } from '../lib/AuthContext'
 import { DEFAULT_CLUB_CONFIG, evaluateBeltProgress } from '../lib/beltLogic'
 import { Users, AlertCircle, Award, Wallet } from 'lucide-react'
 
+function isStudentActive(student: any) {
+  const status = String(student?.contact?.status || '')
+  return student?.active !== false && status !== 'Cancelado'
+}
+
+function getMonthPayment(payments: any[], month: string) {
+  const sameMonth = (payments || []).filter((p: any) => (p.start_date || '').slice(0, 7) === month)
+  if (sameMonth.length === 0) return null
+  const ordered = [...sameMonth].sort((a: any, b: any) => {
+    const ta = new Date(a.created_at || 0).getTime()
+    const tb = new Date(b.created_at || 0).getTime()
+    return tb - ta
+  })
+  return ordered[0]
+}
+
 export default function Dashboard() {
   const [activeCount, setActiveCount] = useState<number | null>(null)
   const [lateCount, setLateCount] = useState<number | null>(null)
@@ -71,7 +87,7 @@ export default function Dashboard() {
       const studentsList = students || []
       const attendList = attendances || []
 
-      setActiveCount(studentsList.filter((s: any) => s.active).length)
+      setActiveCount(studentsList.filter((s: any) => isStudentActive(s)).length)
       // calcular inadimplentes: alunos ativos cujo pagamento do mês atual está como "Inadimplente"
       const payList = payments || []
       const paymentsByStudent: Record<string, any[]> = {}
@@ -98,7 +114,7 @@ export default function Dashboard() {
 
       const openStudentIds = new Set<string>()
       for (const s of studentsList) {
-        if (!s.active) continue
+        if (!isStudentActive(s)) continue
         const sPayments = paymentsByStudent[s.id] || []
         const payment = sPayments.find((p: any) => (p.start_date || '').slice(0, 7) === currentMonth)
         const status = getPaymentStatus(payment, nowDate)
@@ -109,9 +125,13 @@ export default function Dashboard() {
       }
       setLateCount(openStudentIds.size)
 
-      const receivedMonth = payList
-        .filter((p: any) => (p.start_date || '').slice(0, 7) === currentMonth && p.status === 'paid')
-        .reduce((sum: number, p: any) => sum + Number(p.amount ?? 0), 0)
+      const receivedMonth = studentsList.reduce((sum: number, s: any) => {
+        if (!isStudentActive(s)) return sum
+        const sPayments = paymentsByStudent[s.id] || []
+        const monthPayment = getMonthPayment(sPayments, currentMonth)
+        if (!monthPayment || monthPayment.status !== 'paid') return sum
+        return sum + Number(monthPayment.amount ?? s.contact?.monthly_fee ?? 0)
+      }, 0)
       setRevenueMonth(receivedMonth)
 
       const dayFormatter = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit' })
@@ -187,11 +207,11 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-5xl mx-auto">
-      <div className="flex items-center justify-between mb-8">
-        <h2 className="text-3xl font-bold text-center flex-1">Dashboard</h2>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-8">
+        <h2 className="text-2xl sm:text-3xl font-bold text-center sm:text-left flex-1">Dashboard</h2>
         <button
           onClick={load}
-          className="ml-4 text-sm px-3 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-50"
+          className="text-sm px-3 py-1 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 self-end sm:self-auto"
         >
           {loading ? 'Atualizando...' : 'Atualizar'}
         </button>
@@ -216,18 +236,20 @@ export default function Dashboard() {
 
       <section className="mb-8 p-4 border rounded-lg bg-white">
         <h3 className="text-xl font-semibold mb-2 text-gray-800">Frequência dos últimos 7 dias</h3>
-        <div className="grid grid-cols-7 gap-2 items-end h-36">
-          {attendanceLast7Days.map((p) => {
-            const max = Math.max(1, ...attendanceLast7Days.map((d) => d.count))
-            const height = Math.max(8, Math.round((p.count / max) * 100))
-            return (
-              <div key={p.day} className="flex flex-col items-center justify-end">
-                <div className="text-[10px] text-gray-500 mb-1">{p.count}</div>
-                <div className="w-8 bg-red-500 rounded-t" style={{ height: `${height}%` }} />
-                <div className="text-[10px] text-gray-500 mt-1 text-center">{p.day}</div>
-              </div>
-            )
-          })}
+        <div className="overflow-x-auto">
+          <div className="grid grid-cols-7 gap-2 items-end h-36 min-w-[420px]">
+            {attendanceLast7Days.map((p) => {
+              const max = Math.max(1, ...attendanceLast7Days.map((d) => d.count))
+              const height = Math.max(8, Math.round((p.count / max) * 100))
+              return (
+                <div key={p.day} className="flex flex-col items-center justify-end">
+                  <div className="text-[10px] text-gray-500 mb-1">{p.count}</div>
+                  <div className="w-8 bg-red-500 rounded-t" style={{ height: `${height}%` }} />
+                  <div className="text-[10px] text-gray-500 mt-1 text-center">{p.day}</div>
+                </div>
+              )
+            })}
+          </div>
         </div>
       </section>
 

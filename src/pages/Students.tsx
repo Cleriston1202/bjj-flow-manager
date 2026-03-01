@@ -93,11 +93,11 @@ export default function Students() {
   return (
     <div className="max-w-4xl mx-auto text-slate-50">
       <h2 className="text-2xl font-bold mb-4">Gestão de Alunos</h2>
-      <div className="mb-4 flex justify-between gap-2">
+      <div className="mb-4 flex flex-col sm:flex-row sm:flex-wrap gap-2">
         <input
           value={query}
           onChange={(e)=>setQuery(e.target.value)}
-          className="border border-slate-700 bg-slate-950 text-slate-50 placeholder:text-slate-500 rounded p-2 w-64"
+          className="border border-slate-700 bg-slate-950 text-slate-50 placeholder:text-slate-500 rounded p-2 w-full sm:w-64"
           placeholder="Buscar aluno por nome"
         />
         <select
@@ -113,10 +113,10 @@ export default function Students() {
         <input
           value={modalityFilter}
           onChange={(e) => setModalityFilter(e.target.value)}
-          className="border border-slate-700 bg-slate-950 text-slate-50 placeholder:text-slate-500 rounded p-2 w-52"
+          className="border border-slate-700 bg-slate-950 text-slate-50 placeholder:text-slate-500 rounded p-2 w-full sm:w-52"
           placeholder="Filtrar modalidade"
         />
-        <button onClick={handleNew} className="bg-primary text-white px-4 py-2 rounded shadow-sm">Novo Aluno</button>
+        <button onClick={handleNew} className="bg-primary text-white px-4 py-2 rounded shadow-sm w-full sm:w-auto">Novo Aluno</button>
       </div>
 
       {showForm && (
@@ -129,7 +129,7 @@ export default function Students() {
 
       <div className="space-y-2">
         {filtered.map(s => (
-          <div key={s.id} className="p-3 border border-slate-800 bg-slate-900/70 rounded-xl flex items-center justify-between">
+          <div key={s.id} className="p-3 border border-slate-800 bg-slate-900/70 rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="h-12 w-12 bg-slate-800 rounded-full overflow-hidden flex-shrink-0">
                 {s.photo_url ? (
@@ -151,7 +151,7 @@ export default function Students() {
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 self-end sm:self-auto">
               <button
                 onClick={()=>handleEdit(s)}
                 className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-blue-100 text-blue-600 hover:bg-blue-600 hover:text-white transition-colors"
@@ -177,11 +177,11 @@ export default function Students() {
         )}
       </div>
 
-      <div className="mt-4 flex items-center justify-between text-sm text-slate-300">
+      <div className="mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-sm text-slate-300">
         <div>
           Página {page} de {totalPages}
         </div>
-        <div className="space-x-2">
+        <div className="flex gap-2">
           <button
             disabled={page <= 1}
             onClick={() => setPage(p => Math.max(1, p - 1))}

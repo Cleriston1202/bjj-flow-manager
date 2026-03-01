@@ -110,20 +110,20 @@ export default function StudentProfile() {
   if (!id) return <div>Aluno não informado.</div>
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-4xl mx-auto text-slate-50">
       <h2 className="text-2xl font-bold mb-4">Perfil do Aluno</h2>
       {loading && <div>Carregando...</div>}
-      {msg && <div className="mb-4 p-2 border rounded">{msg}</div>}
+      {msg && <div className="mb-4 p-2 border border-slate-700 rounded bg-slate-900/70">{msg}</div>}
       {student && (
-        <div className="p-4 border rounded">
-          <div className="flex items-center gap-4">
-            <div className="h-24 w-24 bg-gray-100 overflow-hidden rounded">
+        <div className="p-4 border border-slate-800 rounded bg-slate-900/70">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+            <div className="h-24 w-24 bg-slate-800 overflow-hidden rounded">
               {student.photo_url ? <img src={student.photo_url} className="h-full w-full object-cover" /> : <div className="h-full w-full flex items-center justify-center text-gray-400">—</div>}
             </div>
             <div>
               <div className="text-xl font-semibold">{student.full_name}</div>
-              <div className="text-sm text-gray-600">Faixa: {student.current_belt} • Grau: {student.current_degree}</div>
-              <div className="text-sm text-gray-500">Total de aulas: {student.total_classes}</div>
+              <div className="text-sm text-slate-300">Faixa: {student.current_belt} • Grau: {student.current_degree}</div>
+              <div className="text-sm text-slate-400">Total de aulas: {student.total_classes}</div>
             </div>
           </div>
 
@@ -154,7 +154,7 @@ export default function StudentProfile() {
               placeholder="Nova senha temporária"
               minLength={6}
             />
-            <div className="mt-4 flex justify-end gap-2">
+            <div className="mt-4 flex flex-col-reverse sm:flex-row justify-end gap-2">
               <button
                 onClick={() => {
                   if (resetLoading) return
@@ -182,12 +182,12 @@ export default function StudentProfile() {
         <h3 className="text-lg font-semibold mb-2">Histórico de Faixas</h3>
         <div className="space-y-2">
           {history.map(h => (
-            <div key={h.id} className="p-3 border rounded">
+            <div key={h.id} className="p-3 border border-slate-800 rounded bg-slate-900/70">
               <div className="font-semibold">{h.belt} • Grau: {h.degree}</div>
-              <div className="text-sm text-gray-600">{new Date(h.awarded_at).toLocaleString()} {h.notes ? `— ${h.notes}` : ''}</div>
+              <div className="text-sm text-slate-400">{new Date(h.awarded_at).toLocaleString()} {h.notes ? `— ${h.notes}` : ''}</div>
             </div>
           ))}
-          {history.length === 0 && <div className="p-3 border rounded">Nenhum registro.</div>}
+          {history.length === 0 && <div className="p-3 border border-slate-800 rounded bg-slate-900/70">Nenhum registro.</div>}
         </div>
       </section>
     </div>

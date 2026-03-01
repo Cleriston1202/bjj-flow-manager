@@ -69,28 +69,28 @@ export default function QRExport() {
   const filtered = students.filter(s => s.full_name.toLowerCase().includes(query.toLowerCase()))
 
   return (
-    <div className="max-w-5xl mx-auto">
+    <div className="max-w-5xl mx-auto text-slate-50">
       <h2 className="text-2xl font-bold mb-4">QRs de Alunos</h2>
-      <div className="mb-4 flex items-center gap-2">
-        <input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Buscar por nome" className="border p-2 rounded flex-1" />
+      <div className="mb-4 flex flex-col sm:flex-row sm:items-center gap-2">
+        <input value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Buscar por nome" className="border border-slate-700 bg-slate-950 p-2 rounded w-full sm:flex-1" />
         <label className="inline-flex items-center gap-2">
           <input type="checkbox" checked={onlyActive} onChange={(e)=>setOnlyActive(e.target.checked)} />
           Somente ativos
         </label>
-        <button onClick={()=>window.print()} className="px-4 py-2 border rounded hover:bg-gray-50">Imprimir</button>
+        <button onClick={()=>window.print()} className="px-4 py-2 border border-slate-700 rounded hover:bg-slate-800 w-full sm:w-auto">Imprimir</button>
       </div>
 
       {loading && <div>Carregando...</div>}
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {filtered.map(s => (
-          <div key={s.id} className="p-4 border rounded-xl flex flex-col items-center gap-3 bg-white shadow-sm">
-            <div className="h-12 w-12 rounded-full bg-gray-100 overflow-hidden">
+          <div key={s.id} className="p-4 border border-slate-800 rounded-xl flex flex-col items-center gap-3 bg-slate-900/70 shadow-sm">
+            <div className="h-12 w-12 rounded-full bg-slate-800 overflow-hidden">
               {s.photo_url ? <img src={s.photo_url} alt={s.full_name} className="h-full w-full object-cover" /> : null}
             </div>
             <div className="text-center">
               <div className="font-semibold text-sm truncate max-w-[140px]">{s.full_name}</div>
-              <div className="text-[11px] text-gray-500 break-all">{s.id}</div>
+              <div className="text-[11px] text-slate-500 break-all">{s.id}</div>
             </div>
             <div className="bg-white p-2 rounded-lg border">
               <QRCode value={s.id} size={128} />
@@ -156,7 +156,7 @@ export default function QRExport() {
       </div>
 
       {toastMessage && (
-        <div className="fixed bottom-4 right-4 z-50 rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-slate-100 shadow-lg">
+        <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 z-50 rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-sm text-slate-100 shadow-lg">
           {toastMessage}
         </div>
       )}

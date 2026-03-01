@@ -239,7 +239,7 @@ export default function ClassSchedules() {
                 {item.weekday} • {item.startTime} às {item.endTime} • Prof. {item.professor}
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className={`text-xs px-2 py-1 rounded ${item.active ? 'bg-emerald-900/60 text-emerald-200' : 'bg-red-900/60 text-red-200'}`}>
                 {item.active ? 'Ativa' : 'Inativa'}
               </span>
