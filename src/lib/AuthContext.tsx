@@ -182,7 +182,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
 
             const manual = wasManualLogout()
-            if (!manual && window.location.pathname !== '/login') {
+            const pathname = window.location.pathname || ''
+            const isPublicPath =
+              pathname === '/login' ||
+              pathname === '/signup' ||
+              pathname === '/forgot-password' ||
+              pathname.startsWith('/meu-qr') ||
+              pathname.startsWith('/checkin/')
+
+            if (!manual && !isPublicPath) {
               markSessionExpiredMessage('Sua sessão expirou por segurança. Faça login novamente para continuar.')
               window.location.href = '/login'
             }

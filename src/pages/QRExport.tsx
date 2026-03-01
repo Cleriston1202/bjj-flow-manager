@@ -15,11 +15,6 @@ function normalizePhoneBR(raw?: string) {
   return normalized
 }
 
-function buildCheckinUrl(studentId: string) {
-  const appBase = getBaseUrl()
-  return `${appBase}/checkin/${studentId}`
-}
-
 async function buildStudentQrUrl(studentId: string, student?: any) {
   const appBase = getBaseUrl()
   try {
@@ -130,10 +125,9 @@ export default function QRExport() {
                       return
                     }
 
-                    const checkinUrl = buildCheckinUrl(s.id)
                     const studentQrUrl = await buildStudentQrUrl(s.id, s)
                     const qrcodeImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=${encodeURIComponent(studentQrUrl)}`
-                    const msg = `Olá ${s.full_name}, aqui está seu link do QR Code de acesso à academia: ${studentQrUrl}\nLink de check-in: ${checkinUrl}`
+                    const msg = `Olá ${s.full_name}, aqui está seu link do QR Code de acesso à academia: ${studentQrUrl}`
 
                     try {
                       const integrated = await fetch('/api/whatsapp/send-qrcode', {
@@ -144,7 +138,6 @@ export default function QRExport() {
                           studentName: s.full_name,
                           phone: normalizedPhone,
                           message: msg,
-                          checkinUrl,
                           studentQrUrl,
                           qrcodeImageUrl,
                         }),
