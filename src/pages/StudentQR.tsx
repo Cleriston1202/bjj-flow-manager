@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import QRCode from 'react-qr-code'
 
+type PaymentStatus = 'paid' | 'late' | 'delinquent' | 'pending'
+
 function getCurrentMonthRange() {
   const now = new Date()
   const year = now.getFullYear()
@@ -42,6 +44,34 @@ function statusColor(status: string) {
   }
 }
 
+function decodeTokenPayload(token: string): any | null {
+  try {
+    const [body] = String(token || '').split('.')
+    if (!body) return null
+    const normalized = body.replace(/-/g, '+').replace(/_/g, '/')
+    const padLength = (4 - (normalized.length % 4)) % 4
+    const padded = normalized + '='.repeat(padLength)
+    const decoded = atob(padded)
+    return JSON.parse(decoded)
+  } catch {
+    return null
+  }
+}
+
+function buildFallbackStudent(token: string, routeStudentId?: string) {
+  const payload = decodeTokenPayload(token)
+  const sid = String(payload?.sid || routeStudentId || '')
+  if (!sid) return null
+
+  return {
+    id: sid,
+    full_name: String(payload?.student?.full_name || 'Aluno'),
+    current_belt: String(payload?.student?.current_belt || 'Branca'),
+    current_degree: Number(payload?.student?.current_degree || 0),
+    photo_url: payload?.student?.photo_url || null,
+  }
+}
+
 export default function StudentQR() {
   const { studentId } = useParams<{ studentId: string }>()
   const [searchParams] = useSearchParams()
@@ -50,7 +80,7 @@ export default function StudentQR() {
   const [error, setError] = useState<string | null>(null)
   const [student, setStudent] = useState<any | null>(null)
   const [classesThisMonth, setClassesThisMonth] = useState(0)
-  const [paymentStatus, setPaymentStatus] = useState<'paid' | 'late' | 'delinquent' | 'pending'>('pending')
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('pending')
   const [nextDueDate, setNextDueDate] = useState<string | null>(null)
   const [progressPercent, setProgressPercent] = useState(0)
 
@@ -62,6 +92,7 @@ export default function StudentQR() {
     async function load() {
       setLoading(true)
       setError(null)
+      const fallbackStudent = buildFallbackStudent(token, studentId)
       try {
         const query = token
           ? `t=${encodeURIComponent(token)}`
@@ -70,6 +101,14 @@ export default function StudentQR() {
         const json = await response.json().catch(() => null)
 
         if (!response.ok || !json?.student) {
+          if (fallbackStudent) {
+            setStudent(fallbackStudent)
+            setClassesThisMonth(0)
+            setPaymentStatus('pending')
+            setNextDueDate(null)
+            setProgressPercent(0)
+            return
+          }
           setError(json?.error || 'Não foi possível carregar os dados do aluno.')
           return
         }
@@ -78,6 +117,16 @@ export default function StudentQR() {
         setPaymentStatus((json.paymentStatus || 'pending') as any)
         setNextDueDate(json.nextDueDate || null)
         setProgressPercent(Number(json.progressPercent || 0))
+      } catch {
+        if (fallbackStudent) {
+          setStudent(fallbackStudent)
+          setClassesThisMonth(0)
+          setPaymentStatus('pending')
+          setNextDueDate(null)
+          setProgressPercent(0)
+          return
+        }
+        setError('Não foi possível carregar os dados do aluno.')
       } finally {
         setLoading(false)
       }
@@ -131,7 +180,7 @@ export default function StudentQR() {
 
         <div className="flex-1 px-6 pt-5 pb-6 flex flex-col items-center gap-4">
           <div className="bg-white p-4 rounded-2xl shadow-inner border border-slate-200">
-            <QRCode value={student.id} size={190} />
+            <QRCode value={String(student.id || '')} size={190} />
           </div>
           <div className={`text-sm px-3 py-1.5 rounded-full font-medium ${statusClass}`}>
             Status financeiro: {statusText}
