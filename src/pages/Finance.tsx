@@ -3,7 +3,7 @@ import { supabase, handleSupabaseAuthError } from '../lib/supabaseClient'
 import { useAuth } from '../lib/AuthContext'
 import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription } from '@radix-ui/react-dialog'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@radix-ui/react-dropdown-menu'
-import { BadgeCheck, BadgeAlert, BadgeX, BadgeDollarSign, Loader2, Calendar, User, CreditCard, Banknote, AlertCircle } from 'lucide-react'
+import { BadgeCheck, BadgeAlert, BadgeX, BadgeDollarSign, Loader2, User, CreditCard, Banknote, AlertCircle, FileText, FileSpreadsheet, Bell } from 'lucide-react'
 
 // Utilitário para obter o mês atual em yyyy-mm
 function getCurrentMonth() {
@@ -61,7 +61,20 @@ export default function Finance() {
   const [settleDate, setSettleDate] = useState('')
   const [settleAmount, setSettleAmount] = useState('')
   const [settleLoading, setSettleLoading] = useState(false)
-  const { tenant } = useAuth()
+  const [historyOpenFor, setHistoryOpenFor] = useState<string | null>(null)
+  const [sendingReminder, setSendingReminder] = useState(false)
+  const { tenant, role } = useAuth()
+
+  if (role !== 'admin') {
+    return (
+      <div className="max-w-3xl mx-auto text-slate-50">
+        <h2 className="text-2xl font-bold mb-2">Financeiro</h2>
+        <div className="border border-slate-800 rounded p-4 bg-slate-900/70 text-sm text-slate-300">
+          Acesso restrito ao perfil Administrador.
+        </div>
+      </div>
+    )
+  }
 
   // Carregar alunos e pagamentos
   const load = useCallback(async () => {
@@ -133,13 +146,15 @@ export default function Finance() {
         if (!s.active) continue
         const hasPayment = paymentsForMonth.some((p: any) => p.student_id === s.id)
         if (!hasPayment) {
+          const dueDay = Math.max(1, Math.min(31, Number(s.contact?.due_day ?? 10)))
+          const safeDue = Math.min(dueDay, last)
           toInsert.push({
             organization_id: tenant?.organizationId,
             student_id: s.id,
             status: 'pending',
-            amount: s.monthly_fee ?? 100,
+            amount: s.contact?.monthly_fee ?? s.monthly_fee ?? 100,
             start_date: monthStart,
-            end_date: `${selectedMonth}-10`,
+            end_date: `${selectedMonth}-${String(safeDue).padStart(2,'0')}`,
           })
         }
       }
@@ -188,6 +203,10 @@ export default function Finance() {
   })
   const rowsToDisplay = onlyDelinquent ? rowsSorted.filter(r => r.status === 'delinquent') : rowsSorted
   const totalInadimplentes = rows.filter(r => r.status === 'delinquent').reduce((sum, r) => sum + Number(r.payment?.amount ?? 0), 0)
+  const totalRecebidoMes = rows.reduce((sum, r) => (r.status === 'paid' ? sum + Number(r.payment?.amount ?? 0) : sum), 0)
+  const totalAbertoMes = rows.reduce((sum, r) => (r.status !== 'paid' ? sum + Number(r.payment?.amount ?? 0) : sum), 0)
+  const totalAtivos = studentsList.filter((s: any) => s.active !== false).length
+  const totalInadimplentesQtd = rows.filter((r) => r.status === 'delinquent').length
 
   // Baixa manual
   async function handleManualPayment(payment: any) {
@@ -196,12 +215,32 @@ export default function Finance() {
       const amountToSave = settleAmount ? Number(settleAmount) : Number(payment.amount ?? 0)
       const { data, error } = await supabase
         .from('payments')
-        .update({ status: 'paid', amount: amountToSave })
+        .update({
+          status: 'paid',
+          amount: amountToSave,
+          payment_method: settleMethod,
+          paid_at: settleDate || new Date().toISOString().slice(0, 10),
+        } as any)
         .eq('id', payment.id)
         .select()
         .single()
       if (error) {
-        if (!handleSupabaseAuthError(error)) {
+        if (String(error?.message || '').toLowerCase().includes('column')) {
+          const { data: fallbackData, error: fallbackError } = await supabase
+            .from('payments')
+            .update({ status: 'paid', amount: amountToSave })
+            .eq('id', payment.id)
+            .select()
+            .single()
+          if (fallbackError) {
+            if (!handleSupabaseAuthError(fallbackError)) {
+              console.error('Erro ao atualizar pagamento (fallback):', fallbackError)
+              alert('Falha ao registrar baixa: ' + (fallbackError.message || ''))
+            }
+          } else {
+            setPayments(prev => prev.map(p => p.id === fallbackData.id ? { ...p, ...fallbackData } : p))
+          }
+        } else if (!handleSupabaseAuthError(error)) {
           console.error('Erro ao atualizar pagamento:', error)
           alert('Falha ao registrar baixa: ' + (error.message || ''))
         }
@@ -212,6 +251,53 @@ export default function Finance() {
       setSettleLoading(false)
       setModal({ open: false })
       load()
+    }
+  }
+
+  function exportExcelLikeCsv() {
+    const header = ['Aluno', 'Status', 'Valor', 'Vencimento', 'Pendências Anteriores']
+    const lines = rowsToDisplay.map((r) => [
+      r.student.full_name,
+      getStatusLabel(r.status),
+      Number(r.payment?.amount ?? 0).toFixed(2),
+      r.payment?.end_date || '',
+      String(r.olderUnpaid),
+    ])
+    const csv = [header, ...lines]
+      .map((row) => row.map((v) => `"${String(v).replaceAll('"', '""')}"`).join(';'))
+      .join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `financeiro-${selectedMonth}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function exportPdf() {
+    window.print()
+  }
+
+  async function sendDueReminders() {
+    try {
+      setSendingReminder(true)
+      const delinquentRows = rowsToDisplay.filter((r) => r.status === 'delinquent' || r.status === 'late')
+      let opened = 0
+      for (const row of delinquentRows) {
+        const phone = String(row.student?.contact?.whatsapp || row.student?.contact?.phone || '').replace(/\D+/g, '')
+        if (!phone) continue
+        const text = `Olá ${row.student.full_name}, sua mensalidade de ${selectedMonth} está ${getStatusLabel(row.status).toLowerCase()}. Favor regularizar. Obrigado!`
+        const popup = window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer')
+        if (popup) opened++
+      }
+      if (delinquentRows.length === 0) {
+        alert('Não há alunos em atraso para enviar avisos.')
+      } else {
+        alert(`Avisos abertos no WhatsApp: ${opened}/${delinquentRows.length}.`)
+      }
+    } finally {
+      setSendingReminder(false)
     }
   }
 
@@ -237,6 +323,27 @@ export default function Finance() {
         <label className="inline-flex items-center gap-2">
           <input type="checkbox" checked={onlyDelinquent} onChange={e=>setOnlyDelinquent(e.target.checked)} /> Somente inadimplentes
         </label>
+        <button onClick={exportPdf} className="px-3 py-2 rounded border border-slate-700 text-sm inline-flex items-center gap-2"><FileText size={14} /> PDF</button>
+        <button onClick={exportExcelLikeCsv} className="px-3 py-2 rounded border border-slate-700 text-sm inline-flex items-center gap-2"><FileSpreadsheet size={14} /> Excel</button>
+        <button onClick={sendDueReminders} disabled={sendingReminder} className="px-3 py-2 rounded border border-slate-700 text-sm inline-flex items-center gap-2 disabled:opacity-60"><Bell size={14} /> {sendingReminder ? 'Enviando...' : 'Avisar vencimentos'}</button>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        <div className="p-3 rounded border border-slate-800 bg-slate-900/70">
+          <div className="text-xs text-slate-400">Total recebido no mês</div>
+          <div className="text-xl font-bold text-emerald-300">R$ {totalRecebidoMes.toFixed(2)}</div>
+        </div>
+        <div className="p-3 rounded border border-slate-800 bg-slate-900/70">
+          <div className="text-xs text-slate-400">Total em aberto</div>
+          <div className="text-xl font-bold text-amber-300">R$ {totalAbertoMes.toFixed(2)}</div>
+        </div>
+        <div className="p-3 rounded border border-slate-800 bg-slate-900/70">
+          <div className="text-xs text-slate-400">Alunos ativos</div>
+          <div className="text-xl font-bold text-blue-300">{totalAtivos}</div>
+        </div>
+        <div className="p-3 rounded border border-slate-800 bg-slate-900/70">
+          <div className="text-xs text-slate-400">Alunos inadimplentes</div>
+          <div className="text-xl font-bold text-red-300">{totalInadimplentesQtd}</div>
+        </div>
       </div>
       <div className="mb-4 p-3 rounded bg-red-50 border border-red-200 text-red-700">
         Total a receber dos inadimplentes: R$ {totalInadimplentes.toFixed(2)}
@@ -333,10 +440,31 @@ export default function Finance() {
                   </DialogContent>
                 </Dialog>
               )}
+              <button
+                className="px-3 py-1 rounded border border-slate-700 text-sm"
+                onClick={() => setHistoryOpenFor(historyOpenFor === s.id ? null : s.id)}
+              >
+                Histórico
+              </button>
             </div>
           </div>
         ))}
       </div>
+      {historyOpenFor && (
+        <div className="mt-4 border border-slate-800 rounded p-3 bg-slate-900/70">
+          <h3 className="font-semibold mb-2">Histórico de pagamentos</h3>
+          <div className="space-y-1 text-sm">
+            {(paymentsByStudent[historyOpenFor] || [])
+              .sort((a: any, b: any) => String(b.start_date).localeCompare(String(a.start_date)))
+              .map((p: any) => (
+                <div key={p.id} className="flex items-center justify-between border-b border-slate-800 pb-1">
+                  <span>{String(p.start_date || '').slice(0,7)} • Venc: {p.end_date || '-'}</span>
+                  <span>{getStatusLabel(getPaymentStatus(p))} • R$ {Number(p.amount ?? 0).toFixed(2)}</span>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

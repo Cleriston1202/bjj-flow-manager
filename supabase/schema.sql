@@ -50,7 +50,21 @@ CREATE TABLE IF NOT EXISTS attendances (
   organization_id uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   student_id uuid REFERENCES students(id) ON DELETE CASCADE,
   session_id uuid,
+  class_id uuid,
   attended_at timestamptz DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS classes (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  name text NOT NULL,
+  modality text NOT NULL,
+  professor_name text NOT NULL,
+  weekday text NOT NULL,
+  start_time text NOT NULL,
+  end_time text NOT NULL,
+  active boolean DEFAULT true,
+  created_at timestamptz DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS belt_history (
@@ -79,6 +93,8 @@ CREATE TABLE IF NOT EXISTS payments (
   plan_id uuid REFERENCES plans(id) ON DELETE SET NULL,
   status payment_status DEFAULT 'pending',
   amount numeric(10,2),
+  payment_method text,
+  paid_at date,
   start_date date,
   end_date date,
   created_at timestamptz DEFAULT now()
@@ -131,6 +147,7 @@ ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE attendances ENABLE ROW LEVEL SECURITY;
+ALTER TABLE classes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE belt_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE plans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE payments ENABLE ROW LEVEL SECURITY;
@@ -171,6 +188,10 @@ CREATE POLICY "students_isolated_by_org" ON students
   WITH CHECK (organization_id IN (SELECT organization_id FROM profiles WHERE id = auth.uid()));
 
 CREATE POLICY "attendances_isolated_by_org" ON attendances
+  USING (organization_id IN (SELECT organization_id FROM profiles WHERE id = auth.uid()))
+  WITH CHECK (organization_id IN (SELECT organization_id FROM profiles WHERE id = auth.uid()));
+
+CREATE POLICY "classes_isolated_by_org" ON classes
   USING (organization_id IN (SELECT organization_id FROM profiles WHERE id = auth.uid()))
   WITH CHECK (organization_id IN (SELECT organization_id FROM profiles WHERE id = auth.uid()));
 

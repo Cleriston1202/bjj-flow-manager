@@ -14,6 +14,7 @@ import Signup from './pages/Signup'
 import ForgotPassword from './pages/ForgotPassword'
 import Finance from './pages/Finance'
 import AccountSettings from './pages/AccountSettings'
+import ClassSchedules from './pages/ClassSchedules'
 import { useAuth } from './lib/AuthContext'
 import { supabase, isSupabaseConfigured } from './lib/supabaseClient'
 
@@ -118,6 +119,7 @@ function AppLayout() {
       <Route path="/students" element={<RequireAuth><Students /></RequireAuth>} />
       <Route path="/students/:id" element={<RequireAuth><StudentProfile /></RequireAuth>} />
       <Route path="/attendance" element={<RequireAuth><Attendance /></RequireAuth>} />
+      <Route path="/classes" element={<RequireAuth><ClassSchedules /></RequireAuth>} />
       <Route path="/checkin/:organizationId" element={<Attendance />} />
       <Route path="/qr" element={<RequireAuth><QRExport /></RequireAuth>} />
       <Route path="/meu-qr/:studentId" element={<StudentQR />} />

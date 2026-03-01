@@ -8,9 +8,20 @@ export interface Student {
   full_name: string
   photo_url?: string
   dob?: string
-  contact?: { phone?: string; email?: string; cpf?: string }
+  contact?: {
+    phone?: string
+    email?: string
+    cpf?: string
+    whatsapp?: string
+    plan?: 'Mensal' | 'Trimestral' | 'Anual'
+    monthly_fee?: number
+    due_day?: number
+    status?: 'Ativo' | 'Inadimplente' | 'Cancelado'
+    modality?: string
+  }
   current_belt?: string
   current_degree?: number
+  active?: boolean
   created_at?: string
   belt_since?: string
 }
@@ -29,7 +40,18 @@ export default function StudentForm({
       full_name: '',
       photo_url: '',
       dob: '',
-      contact: { phone: '', email: '' },
+      contact: {
+        phone: '',
+        whatsapp: '',
+        email: '',
+        cpf: '',
+        plan: 'Mensal',
+        monthly_fee: 100,
+        due_day: 10,
+        status: 'Ativo',
+        modality: 'Jiu-Jitsu',
+      },
+      active: true,
       current_belt: 'Branca',
       current_degree: 0,
     }
@@ -62,11 +84,13 @@ export default function StudentForm({
         form.photo_url = urlData.publicUrl
       }
       if (form.id) {
+        const status = form.contact?.status || 'Ativo'
         const { error } = await supabase.from('students').update({
           full_name: form.full_name,
           photo_url: form.photo_url,
           dob: form.dob,
           contact: form.contact,
+          active: status !== 'Cancelado',
           current_belt: form.current_belt,
           current_degree: form.current_degree,
         }).eq('id', form.id)
@@ -84,10 +108,12 @@ export default function StudentForm({
         }
 
         const nowIso = new Date().toISOString()
+        const status = form.contact?.status || 'Ativo'
 
         const payload = {
           ...form,
           organization_id: tenant.organizationId,
+          active: status !== 'Cancelado',
           created_at: nowIso,
           belt_since: form.belt_since || nowIso,
         }
@@ -130,6 +156,7 @@ export default function StudentForm({
             className="border border-slate-700 bg-slate-950 text-slate-50 placeholder:text-slate-500 p-2 rounded w-full"
             value={form.contact?.email || ''}
             onChange={(e)=>setForm({...form, contact: {...form.contact, email: e.target.value}})}
+            required
           />
         </div>
         <div>
@@ -138,6 +165,15 @@ export default function StudentForm({
             className="border border-slate-700 bg-slate-950 text-slate-50 placeholder:text-slate-500 p-2 rounded w-full"
             value={form.contact?.phone || ''}
             onChange={(e)=>setForm({...form, contact: {...form.contact, phone: e.target.value}})}
+            required
+          />
+        </div>
+        <div>
+          <label className="block text-sm text-slate-200">WhatsApp</label>
+          <input
+            className="border border-slate-700 bg-slate-950 text-slate-50 placeholder:text-slate-500 p-2 rounded w-full"
+            value={form.contact?.whatsapp || ''}
+            onChange={(e)=>setForm({...form, contact: {...form.contact, whatsapp: e.target.value}})}
           />
         </div>
         <div>
@@ -147,6 +183,65 @@ export default function StudentForm({
             value={form.contact?.cpf || ''}
             onChange={(e)=>setForm({...form, contact: {...form.contact, cpf: e.target.value}})}
             placeholder="000.000.000-00"
+            required
+          />
+        </div>
+        <div>
+          <label className="block text-sm text-slate-200">Plano</label>
+          <select
+            className="border border-slate-700 bg-slate-950 text-slate-50 p-2 rounded w-full"
+            value={form.contact?.plan || 'Mensal'}
+            onChange={(e)=>setForm({...form, contact: {...form.contact, plan: e.target.value as any}})}
+          >
+            <option value="Mensal">Mensal</option>
+            <option value="Trimestral">Trimestral</option>
+            <option value="Anual">Anual</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm text-slate-200">Valor da mensalidade (R$)</label>
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            className="border border-slate-700 bg-slate-950 text-slate-50 p-2 rounded w-full"
+            value={form.contact?.monthly_fee ?? 100}
+            onChange={(e)=>setForm({...form, contact: {...form.contact, monthly_fee: Number(e.target.value)}})}
+            required
+          />
+        </div>
+        <div>
+          <label className="block text-sm text-slate-200">Dia de vencimento</label>
+          <input
+            type="number"
+            min={1}
+            max={31}
+            className="border border-slate-700 bg-slate-950 text-slate-50 p-2 rounded w-full"
+            value={form.contact?.due_day ?? 10}
+            onChange={(e)=>setForm({...form, contact: {...form.contact, due_day: Number(e.target.value)}})}
+            required
+          />
+        </div>
+        <div>
+          <label className="block text-sm text-slate-200">Status</label>
+          <select
+            className="border border-slate-700 bg-slate-950 text-slate-50 p-2 rounded w-full"
+            value={form.contact?.status || 'Ativo'}
+            onChange={(e)=>setForm({...form, contact: {...form.contact, status: e.target.value as any}, active: e.target.value !== 'Cancelado'})}
+          >
+            <option value="Ativo">Ativo</option>
+            <option value="Inadimplente">Inadimplente</option>
+            <option value="Cancelado">Cancelado</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm text-slate-200">Modalidade</label>
+          <input
+            className="border border-slate-700 bg-slate-950 text-slate-50 p-2 rounded w-full"
+            value={form.contact?.modality || ''}
+            onChange={(e)=>setForm({...form, contact: {...form.contact, modality: e.target.value}})}
+            placeholder="Ex: Jiu-Jitsu Kids"
+            required
           />
         </div>
         <div>

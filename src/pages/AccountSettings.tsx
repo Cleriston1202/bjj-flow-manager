@@ -5,7 +5,7 @@ import { useAuth } from '../lib/AuthContext'
 import { Upload, Save } from 'lucide-react'
 
 export default function AccountSettings() {
-  const { tenant, refreshTenant } = useAuth()
+  const { tenant, refreshTenant, role } = useAuth()
   const [name, setName] = useState(tenant?.organizationName || '')
   const [plan, setPlan] = useState<'free' | 'pro'>(tenant?.plan || 'free')
   const [logoFile, setLogoFile] = useState<File | null>(null)
@@ -55,6 +55,17 @@ export default function AccountSettings() {
   }
 
   const checkinUrl = tenant ? `${getBaseUrl()}/checkin/${tenant.organizationId}` : ''
+
+  if (role !== 'admin') {
+    return (
+      <div className="max-w-3xl mx-auto text-slate-50">
+        <h2 className="text-2xl font-bold mb-4">Configurações da Conta</h2>
+        <div className="border border-slate-800 rounded p-4 bg-slate-900/70 text-sm text-slate-300">
+          Acesso restrito ao perfil Administrador.
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-3xl mx-auto text-slate-50">

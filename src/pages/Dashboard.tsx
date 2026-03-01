@@ -2,13 +2,15 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { supabase, handleSupabaseAuthError } from '../lib/supabaseClient'
 import { useAuth } from '../lib/AuthContext'
 import { DEFAULT_CLUB_CONFIG, evaluateBeltProgress } from '../lib/beltLogic'
-import { Users, AlertCircle, Award, UserCheck } from 'lucide-react'
+import { Users, AlertCircle, Award, Wallet } from 'lucide-react'
 
 export default function Dashboard() {
   const [activeCount, setActiveCount] = useState<number | null>(null)
   const [lateCount, setLateCount] = useState<number | null>(null)
   const [readyCount, setReadyCount] = useState<number | null>(null)
   const [alertCount, setAlertCount] = useState<number | null>(null)
+  const [revenueMonth, setRevenueMonth] = useState<number | null>(null)
+  const [attendanceLast7Days, setAttendanceLast7Days] = useState<{ day: string; count: number }[]>([])
   const [readyStudents, setReadyStudents] = useState<any[]>([])
   const [promotingId, setPromotingId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -107,6 +109,27 @@ export default function Dashboard() {
       }
       setLateCount(openStudentIds.size)
 
+      const receivedMonth = payList
+        .filter((p: any) => (p.start_date || '').slice(0, 7) === currentMonth && p.status === 'paid')
+        .reduce((sum: number, p: any) => sum + Number(p.amount ?? 0), 0)
+      setRevenueMonth(receivedMonth)
+
+      const dayFormatter = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit' })
+      const last7: { day: string; count: number }[] = []
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date()
+        d.setHours(0, 0, 0, 0)
+        d.setDate(d.getDate() - i)
+        const next = new Date(d)
+        next.setDate(d.getDate() + 1)
+        const count = attendList.filter((a: any) => {
+          const t = new Date(a.attended_at).getTime()
+          return t >= d.getTime() && t < next.getTime()
+        }).length
+        last7.push({ day: dayFormatter.format(d), count })
+      }
+      setAttendanceLast7Days(last7)
+
       // map attendances by student
       const attendMap: Record<string, any[]> = {}
       attendList.forEach((a: any) => {
@@ -173,7 +196,7 @@ export default function Dashboard() {
           {loading ? 'Atualizando...' : 'Atualizar'}
         </button>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-gradient-to-br from-blue-600 to-blue-400 text-white rounded-xl shadow-lg p-6 flex flex-col items-center">
           <Users size={36} className="mb-2" />
           <span className="text-lg">Alunos ativos</span>
@@ -184,17 +207,29 @@ export default function Dashboard() {
           <span className="text-lg">Inadimplentes</span>
           <span className="text-3xl font-bold mt-1">{lateCount ?? (loading? '...' : 0)}</span>
         </div>
-        <div className="bg-gradient-to-br from-green-500 to-emerald-400 text-white rounded-xl shadow-lg p-6 flex flex-col items-center">
-          <Award size={36} className="mb-2" />
-          <span className="text-lg">Prontos para graduação</span>
-          <span className="text-3xl font-bold mt-1">{readyCount ?? (loading? '...' : 0)}</span>
-        </div>
-        <div className="bg-gradient-to-br from-yellow-400 to-orange-400 text-white rounded-xl shadow-lg p-6 flex flex-col items-center">
-          <UserCheck size={36} className="mb-2" />
-          <span className="text-lg">Alunos com alerta</span>
-          <span className="text-3xl font-bold mt-1">{alertCount ?? (loading? '...' : 0)}</span>
+        <div className="bg-gradient-to-br from-emerald-600 to-green-500 text-white rounded-xl shadow-lg p-6 flex flex-col items-center">
+          <Wallet size={36} className="mb-2" />
+          <span className="text-lg">Receita do mês</span>
+          <span className="text-3xl font-bold mt-1">R$ {Number(revenueMonth ?? 0).toFixed(2)}</span>
         </div>
       </div>
+
+      <section className="mb-8 p-4 border rounded-lg bg-white">
+        <h3 className="text-xl font-semibold mb-2 text-gray-800">Frequência dos últimos 7 dias</h3>
+        <div className="grid grid-cols-7 gap-2 items-end h-36">
+          {attendanceLast7Days.map((p) => {
+            const max = Math.max(1, ...attendanceLast7Days.map((d) => d.count))
+            const height = Math.max(8, Math.round((p.count / max) * 100))
+            return (
+              <div key={p.day} className="flex flex-col items-center justify-end">
+                <div className="text-[10px] text-gray-500 mb-1">{p.count}</div>
+                <div className="w-8 bg-red-500 rounded-t" style={{ height: `${height}%` }} />
+                <div className="text-[10px] text-gray-500 mt-1 text-center">{p.day}</div>
+              </div>
+            )
+          })}
+        </div>
+      </section>
 
       <section className="mt-8">
         <h3 className="text-xl font-semibold mb-4 text-gray-800">Atalhos rápidos</h3>

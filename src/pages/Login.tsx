@@ -74,8 +74,8 @@ export default function Login() {
     }
   }
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white text-black">
-      <div className="w-full max-w-md p-6 border rounded">
+    <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-50 px-4">
+      <div className="w-full max-w-md p-6 border border-slate-800 rounded-xl bg-slate-900/70">
         <h2 className="text-2xl font-bold mb-4">Entrar</h2>
         {sessionNotice && (
           <div className="mb-3 rounded border border-blue-200 bg-blue-50 p-3 text-sm leading-5 text-blue-800">
@@ -85,13 +85,13 @@ export default function Login() {
         <form onSubmit={handleLogin} className="space-y-3">
           <div>
             <label className="text-sm">Email</label>
-            <div className="flex items-center gap-2 border rounded p-2 mt-1">
+            <div className="flex items-center gap-2 border border-slate-700 bg-slate-950 rounded p-2 mt-1">
               <Mail size={16} />
               <input
                 type="email"
                 value={email}
                 onChange={(e)=>setEmail(e.target.value)}
-                className="flex-1 outline-none"
+                className="flex-1 outline-none bg-transparent"
                 placeholder="seu@email.com"
                 required
               />
@@ -99,32 +99,32 @@ export default function Login() {
           </div>
           <div>
             <label className="text-sm">Senha</label>
-            <div className="flex items-center gap-2 border rounded p-2 mt-1">
+            <div className="flex items-center gap-2 border border-slate-700 bg-slate-950 rounded p-2 mt-1">
               <Lock size={16} />
               <input
                 type="password"
                 value={password}
                 onChange={(e)=>setPassword(e.target.value)}
-                className="flex-1 outline-none"
+                className="flex-1 outline-none bg-transparent"
                 placeholder="••••••••"
                 required
               />
             </div>
           </div>
-          {error && <div className="p-2 border rounded text-red-700 bg-red-50">{error}</div>}
+          {error && <div className="p-2 border border-red-700 rounded text-red-200 bg-red-900/40">{error}</div>}
           <button
             type="submit"
             disabled={loading}
-            className="w-full px-3 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-60"
+            className="w-full px-3 py-2 rounded bg-red-600 hover:bg-red-700 text-white disabled:opacity-60"
           >
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
           <div className="text-sm text-right">
-            <Link to="/forgot-password" className="text-blue-600 hover:underline">Esqueci minha senha</Link>
+            <Link to="/forgot-password" className="text-red-300 hover:underline">Esqueci minha senha</Link>
           </div>
         </form>
         <div className="mt-4 text-sm">
-          Não tem conta? <Link to="/signup" className="text-blue-600 hover:underline">Criar conta</Link>
+          Não tem conta? <Link to="/signup" className="text-red-300 hover:underline">Criar conta</Link>
         </div>
       </div>
     </div>

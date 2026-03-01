@@ -3,6 +3,7 @@ import {
   Home,
   Users,
   CheckSquare,
+  CalendarDays,
   QrCode,
   Wallet,
   Settings,
@@ -18,12 +19,13 @@ const navItems = [
   { to: '/dashboard', icon: Home, label: 'Dashboard' },
   { to: '/students', icon: Users, label: 'Alunos' },
   { to: '/attendance', icon: CheckSquare, label: 'Presenças' },
+  { to: '/classes', icon: CalendarDays, label: 'Aulas' },
   { to: '/qr', icon: QrCode, label: 'QRs' },
-  { to: '/finance', icon: Wallet, label: 'Financeiro' },
+  { to: '/finance', icon: Wallet, label: 'Financeiro', adminOnly: true },
 ]
 
 export default function Sidebar() {
-  const { tenant } = useAuth()
+  const { tenant, role } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const [collapsed, setCollapsed] = useState(false)
@@ -74,7 +76,7 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 px-2 py-4 space-y-1">
-        {navItems.map((item) => {
+        {navItems.filter((item: any) => !item.adminOnly || role === 'admin').map((item: any) => {
           const Icon = item.icon
           const active = location.pathname === item.to || location.pathname.startsWith(`${item.to}/`)
           return (
@@ -95,14 +97,16 @@ export default function Sidebar() {
       </nav>
 
       <div className="px-3 py-4 border-t border-slate-800 flex flex-col gap-2">
-        <button
-          type="button"
-          onClick={() => navigate('/account')}
-          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-slate-800/70 hover:text-white"
-        >
-          <Settings size={18} className="shrink-0" />
-          {!collapsed && <span>Conta</span>}
-        </button>
+        {role === 'admin' && (
+          <button
+            type="button"
+            onClick={() => navigate('/account')}
+            className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-300 hover:bg-slate-800/70 hover:text-white"
+          >
+            <Settings size={18} className="shrink-0" />
+            {!collapsed && <span>Conta</span>}
+          </button>
+        )}
         <button
           type="button"
           onClick={handleLogout}

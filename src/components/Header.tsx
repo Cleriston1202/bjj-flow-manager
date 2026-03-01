@@ -1,12 +1,12 @@
 import React, { useState } from 'react'
-import { Home, Users, CheckSquare, QrCode, Wallet, Menu, X, Settings, LogOut } from 'lucide-react'
+import { Home, Users, CheckSquare, CalendarDays, QrCode, Wallet, Menu, X, Settings, LogOut } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
 import { supabase, markManualLogout } from '../lib/supabaseClient'
 
 export default function Header() {
   const [open, setOpen] = useState(false)
-  const { tenant } = useAuth()
+  const { tenant, role } = useAuth()
   const navigate = useNavigate()
 
   async function handleLogout() {
@@ -45,18 +45,25 @@ export default function Header() {
           <Link to="/attendance" className="inline-flex items-center gap-2">
             <CheckSquare size={16} /> Presenças
           </Link>
+          <Link to="/classes" className="inline-flex items-center gap-2">
+            <CalendarDays size={16} /> Aulas
+          </Link>
           <Link to="/qr" className="inline-flex items-center gap-2">
             <QrCode size={16} /> QRs
           </Link>
-          <Link to="/finance" className="inline-flex items-center gap-2">
-            <Wallet size={16} /> Financeiro
-          </Link>
+          {role === 'admin' && (
+            <Link to="/finance" className="inline-flex items-center gap-2">
+              <Wallet size={16} /> Financeiro
+            </Link>
+          )}
           <button onClick={handleLogout} className="inline-flex items-center gap-2">
             <LogOut size={16} /> Sair
           </button>
-          <Link to="/account" className="inline-flex items-center gap-2">
-            <Settings size={16} /> Conta
-          </Link>
+          {role === 'admin' && (
+            <Link to="/account" className="inline-flex items-center gap-2">
+              <Settings size={16} /> Conta
+            </Link>
+          )}
         </nav>
       </div>
       {open && (
@@ -71,15 +78,22 @@ export default function Header() {
             <Link to="/attendance" onClick={()=>setOpen(false)} className="inline-flex items-center gap-2">
               <CheckSquare size={16} /> Presenças
             </Link>
+            <Link to="/classes" onClick={()=>setOpen(false)} className="inline-flex items-center gap-2">
+              <CalendarDays size={16} /> Aulas
+            </Link>
             <Link to="/qr" onClick={()=>setOpen(false)} className="inline-flex items-center gap-2">
               <QrCode size={16} /> QRs
             </Link>
-            <Link to="/finance" onClick={()=>setOpen(false)} className="inline-flex items-center gap-2">
-              <Wallet size={16} /> Financeiro
-            </Link>
-            <Link to="/account" onClick={()=>setOpen(false)} className="inline-flex items-center gap-2">
-              <Settings size={16} /> Conta
-            </Link>
+            {role === 'admin' && (
+              <Link to="/finance" onClick={()=>setOpen(false)} className="inline-flex items-center gap-2">
+                <Wallet size={16} /> Financeiro
+              </Link>
+            )}
+            {role === 'admin' && (
+              <Link to="/account" onClick={()=>setOpen(false)} className="inline-flex items-center gap-2">
+                <Settings size={16} /> Conta
+              </Link>
+            )}
             <button onClick={() => { setOpen(false); handleLogout() }} className="inline-flex items-center gap-2 text-left">
               <LogOut size={16} /> Sair
             </button>

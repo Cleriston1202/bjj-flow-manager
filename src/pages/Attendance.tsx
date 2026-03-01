@@ -69,6 +69,16 @@ function playBeep(kind: 'success' | 'error') {
 }
 
 export default function Attendance() {
+  type ClassSchedule = {
+    id: string
+    name: string
+    modality: string
+    professor: string
+    weekday: string
+    startTime: string
+    endTime: string
+    active: boolean
+  }
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
@@ -91,6 +101,9 @@ export default function Attendance() {
     belt: string
     degree: number
   } | null>(null)
+  const [classSchedules, setClassSchedules] = useState<ClassSchedule[]>([])
+  const [selectedClassId, setSelectedClassId] = useState<string>('')
+  const [inactiveStudents15d, setInactiveStudents15d] = useState<any[]>([])
   const { tenant } = useAuth()
   const { organizationId } = useParams<{ organizationId?: string }>()
   const isKiosk = Boolean(organizationId)
@@ -110,9 +123,57 @@ export default function Attendance() {
         return
       }
       if (data) setStudents(data)
+
+      const { data: classSettings } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('organization_id', tenant.organizationId)
+        .eq('key', 'class_schedules')
+        .maybeSingle()
+      const classes = Array.isArray(classSettings?.value) ? classSettings?.value : []
+      setClassSchedules(classes as ClassSchedule[])
+      const firstActive = (classes as ClassSchedule[]).find((c) => c.active)
+      if (firstActive && !selectedClassId) {
+        setSelectedClassId(firstActive.id)
+      }
+
+      const { data: allAttendances } = await supabase
+        .from('attendances')
+        .select('student_id, attended_at')
+        .eq('organization_id', tenant.organizationId)
+
+      const byStudent = new Map<string, number>()
+      for (const row of allAttendances || []) {
+        if (!row.student_id) continue
+        const t = new Date(row.attended_at).getTime()
+        const prev = byStudent.get(row.student_id) || 0
+        if (t > prev) byStudent.set(row.student_id, t)
+      }
+      const cutoff = Date.now() - 15 * 24 * 60 * 60 * 1000
+      const stale = (data || [])
+        .filter((s: any) => {
+          const last = byStudent.get(s.id) || 0
+          return !last || last < cutoff
+        })
+        .slice(0, 20)
+      setInactiveStudents15d(stale)
     }
     loadStudents()
-  }, [tenant])
+  }, [tenant, selectedClassId])
+
+  useEffect(() => {
+    if (!selectedClassId) return
+    const today = new Date().toISOString().slice(0, 10)
+    const key = `attendance_session_${selectedClassId}_${today}`
+    const existing = window.localStorage.getItem(key)
+    if (existing) {
+      setSessionId(existing)
+      return
+    }
+    const created = createSessionId()
+    window.localStorage.setItem(key, created)
+    setSessionId(created)
+  }, [selectedClassId])
 
   useEffect(() => {
     if (!qrEnabled) return
@@ -262,6 +323,7 @@ export default function Attendance() {
         source: source === 'scan' ? 'qr' : 'manual',
       }
       if (sessionId) attendanceRow.session_id = sessionId
+      if (selectedClassId) attendanceRow.technical_observation = `class_id:${selectedClassId}`
 
       const { error: attendanceError } = await supabase
         .from('attendances')
@@ -481,6 +543,23 @@ export default function Attendance() {
         <h2 className="text-2xl font-bold mb-4 text-slate-50">Central de Check-in &amp; Acesso</h2>
       )}
 
+      <div className="mb-4 border border-slate-800 bg-slate-900/80 rounded-xl p-3 flex flex-col md:flex-row md:items-center gap-3">
+        <label className="text-sm text-slate-300">Aula atual:</label>
+        <select
+          value={selectedClassId}
+          onChange={(e) => setSelectedClassId(e.target.value)}
+          className="border border-slate-700 bg-slate-950 text-slate-50 rounded p-2 min-w-[260px]"
+        >
+          <option value="">Selecione um horário</option>
+          {classSchedules.filter((c) => c.active).map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name} • {c.modality} • {c.weekday} {c.startTime}-{c.endTime} • Prof. {c.professor}
+            </option>
+          ))}
+        </select>
+        <span className="text-xs text-slate-500">A lista de presença desta sessão fica vinculada à aula selecionada.</span>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* Totem / QR */}
         <div className="border border-slate-800 bg-slate-900/80 rounded-2xl p-4 flex flex-col gap-4 shadow-sm">
@@ -690,7 +769,15 @@ export default function Attendance() {
           <button
             onClick={() => {
               setCheckedInIds([])
-              setSessionId(createSessionId())
+              if (selectedClassId) {
+                const today = new Date().toISOString().slice(0, 10)
+                const key = `attendance_session_${selectedClassId}_${today}`
+                const created = createSessionId()
+                window.localStorage.setItem(key, created)
+                setSessionId(created)
+              } else {
+                setSessionId(createSessionId())
+              }
               setMessage('Aula finalizada. Nova sessão iniciada para o próximo horário.')
               setMessageType('success')
             }}
@@ -717,6 +804,25 @@ export default function Attendance() {
               <div className="text-xs font-medium truncate w-full">{s.full_name}</div>
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="mt-6 border border-slate-800 rounded-2xl p-4 bg-slate-900/80">
+        <h3 className="font-semibold text-slate-50 mb-1">Alunos sem treinar há 15 dias</h3>
+        <p className="text-xs text-slate-400 mb-3">Lista para contato e recuperação de frequência.</p>
+        <div className="space-y-2">
+          {inactiveStudents15d.map((s) => (
+            <div key={s.id} className="flex items-center justify-between border border-slate-800 rounded p-2">
+              <div>
+                <div className="text-sm font-medium">{s.full_name}</div>
+                <div className="text-xs text-slate-500">{s.contact?.phone || s.contact?.whatsapp || 'Sem telefone'}</div>
+              </div>
+              <span className="text-xs px-2 py-1 rounded bg-red-900/50 text-red-200">Inativo 15+ dias</span>
+            </div>
+          ))}
+          {inactiveStudents15d.length === 0 && (
+            <div className="text-xs text-slate-500">Nenhum aluno inativo por mais de 15 dias.</div>
+          )}
         </div>
       </section>
     </div>

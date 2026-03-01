@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Pencil, Trash2 } from 'lucide-react'
+import { Pencil, UserX } from 'lucide-react'
 import { supabase, handleSupabaseAuthError } from '../lib/supabaseClient'
 import { useAuth } from '../lib/AuthContext'
 import StudentForm, { Student } from '../components/StudentForm'
@@ -9,6 +9,8 @@ export default function Students() {
   const [students, setStudents] = useState<Student[]>([])
   const [loading, setLoading] = useState(false)
   const [query, setQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'Todos' | 'Ativo' | 'Inadimplente' | 'Cancelado'>('Todos')
+  const [modalityFilter, setModalityFilter] = useState('')
   const [editing, setEditing] = useState<Student | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [page, setPage] = useState(1)
@@ -51,13 +53,21 @@ export default function Students() {
     setShowForm(true)
   }
 
-  async function handleDelete(id?: string) {
+  async function handleInactivate(student?: Student) {
+    const id = student?.id
     if (!id) return
-    if (!confirm('Remover aluno?')) return
-    const { error } = await supabase.from('students').delete().eq('id', id)
+    if (!confirm('Inativar aluno?')) return
+    const nextContact = {
+      ...(student?.contact || {}),
+      status: 'Cancelado',
+    }
+    const { error } = await supabase
+      .from('students')
+      .update({ active: false, contact: nextContact })
+      .eq('id', id)
     if (error) {
       if (!handleSupabaseAuthError(error)) {
-        alert('Erro: ' + error.message)
+        alert('Erro ao inativar: ' + error.message)
       }
       return
     }
@@ -70,7 +80,14 @@ export default function Students() {
     fetchStudents(page)
   }
 
-  const filtered = students.filter(s => s.full_name.toLowerCase().includes(query.toLowerCase()))
+  const filtered = students.filter(s => {
+    const byName = s.full_name.toLowerCase().includes(query.toLowerCase())
+    const status = s.contact?.status || (s.active === false ? 'Cancelado' : 'Ativo')
+    const modality = String(s.contact?.modality || '')
+    const byStatus = statusFilter === 'Todos' ? true : status === statusFilter
+    const byModality = modalityFilter ? modality.toLowerCase().includes(modalityFilter.toLowerCase()) : true
+    return byName && byStatus && byModality
+  })
   const totalPages = totalCount > 0 ? Math.ceil(totalCount / PAGE_SIZE) : 1
 
   return (
@@ -82,6 +99,22 @@ export default function Students() {
           onChange={(e)=>setQuery(e.target.value)}
           className="border border-slate-700 bg-slate-950 text-slate-50 placeholder:text-slate-500 rounded p-2 w-64"
           placeholder="Buscar aluno por nome"
+        />
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as any)}
+          className="border border-slate-700 bg-slate-950 text-slate-50 rounded p-2"
+        >
+          <option value="Todos">Status: Todos</option>
+          <option value="Ativo">Ativo</option>
+          <option value="Inadimplente">Inadimplente</option>
+          <option value="Cancelado">Cancelado</option>
+        </select>
+        <input
+          value={modalityFilter}
+          onChange={(e) => setModalityFilter(e.target.value)}
+          className="border border-slate-700 bg-slate-950 text-slate-50 placeholder:text-slate-500 rounded p-2 w-52"
+          placeholder="Filtrar modalidade"
         />
         <button onClick={handleNew} className="bg-primary text-white px-4 py-2 rounded shadow-sm">Novo Aluno</button>
       </div>
@@ -110,6 +143,12 @@ export default function Students() {
                   <Link to={`/students/${s.id}`} className="hover:underline text-slate-50">{s.full_name}</Link>
                 </div>
                 <div className="text-sm text-slate-400">Faixa: {s.current_belt || 'Branca'} • Grau: {s.current_degree ?? 0}</div>
+                <div className="text-xs text-slate-500">
+                  {s.contact?.modality || 'Sem modalidade'} • Plano: {s.contact?.plan || 'Mensal'} • R$ {Number(s.contact?.monthly_fee ?? 0).toFixed(2)}
+                </div>
+                <div className="text-xs text-slate-500">
+                  Status: {s.contact?.status || (s.active === false ? 'Cancelado' : 'Ativo')} • Vencimento: dia {s.contact?.due_day ?? 10}
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -121,11 +160,11 @@ export default function Students() {
                 <Pencil size={16} />
               </button>
               <button
-                onClick={()=>handleDelete(s.id)}
+                onClick={()=>handleInactivate(s)}
                 className="inline-flex items-center justify-center w-8 h-8 rounded-full border border-red-100 text-red-600 hover:bg-red-600 hover:text-white transition-colors"
-                aria-label="Remover aluno"
+                aria-label="Inativar aluno"
               >
-                <Trash2 size={16} />
+                <UserX size={16} />
               </button>
             </div>
           </div>

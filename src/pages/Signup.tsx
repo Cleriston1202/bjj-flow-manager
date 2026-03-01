@@ -73,8 +73,8 @@ export default function Signup() {
     }
   }
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white text-black">
-      <div className="w-full max-w-md p-6 border rounded">
+    <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-50 px-4">
+      <div className="w-full max-w-md p-6 border border-slate-800 rounded-xl bg-slate-900/70">
         <div className="flex items-center gap-2 mb-4">
           <UserPlus size={20} />
           <h2 className="text-2xl font-bold">Criar conta</h2>
@@ -86,20 +86,20 @@ export default function Signup() {
               type="text"
               value={academyName}
               onChange={(e)=>setAcademyName(e.target.value)}
-              className="border rounded p-2 w-full mt-1"
+              className="border border-slate-700 bg-slate-950 rounded p-2 w-full mt-1"
               placeholder="Ex: Team Bondade BJJ"
               required
             />
           </div>
           <div>
             <label className="text-sm">Email</label>
-            <div className="flex items-center gap-2 border rounded p-2 mt-1">
+            <div className="flex items-center gap-2 border border-slate-700 bg-slate-950 rounded p-2 mt-1">
               <Mail size={16} />
               <input
                 type="email"
                 value={email}
                 onChange={(e)=>setEmail(e.target.value)}
-                className="flex-1 outline-none"
+                className="flex-1 outline-none bg-transparent"
                 placeholder="seu@email.com"
                 required
               />
@@ -107,30 +107,30 @@ export default function Signup() {
           </div>
           <div>
             <label className="text-sm">Senha</label>
-            <div className="flex items-center gap-2 border rounded p-2 mt-1">
+            <div className="flex items-center gap-2 border border-slate-700 bg-slate-950 rounded p-2 mt-1">
               <Lock size={16} />
               <input
                 type="password"
                 value={password}
                 onChange={(e)=>setPassword(e.target.value)}
-                className="flex-1 outline-none"
+                className="flex-1 outline-none bg-transparent"
                 placeholder="••••••••"
                 required
               />
             </div>
           </div>
-          {error && <div className="p-2 border rounded text-red-700 bg-red-50">{error}</div>}
-          {success && <div className="p-2 border rounded text-green-700 bg-green-50">{success}</div>}
+          {error && <div className="p-2 border border-red-700 rounded text-red-200 bg-red-900/40">{error}</div>}
+          {success && <div className="p-2 border border-emerald-700 rounded text-emerald-200 bg-emerald-900/40">{success}</div>}
           <button
             type="submit"
             disabled={loading}
-            className="w-full px-3 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-60"
+            className="w-full px-3 py-2 rounded bg-red-600 hover:bg-red-700 text-white disabled:opacity-60"
           >
             {loading ? 'Criando...' : 'Criar conta'}
           </button>
         </form>
         <div className="mt-4 text-sm">
-          Já tem conta? <Link to="/login" className="text-blue-600 hover:underline">Entrar</Link>
+          Já tem conta? <Link to="/login" className="text-red-300 hover:underline">Entrar</Link>
         </div>
       </div>
     </div>

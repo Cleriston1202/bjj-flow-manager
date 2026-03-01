@@ -219,8 +219,8 @@ export default function ForgotPassword() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white text-black">
-      <div className="w-full max-w-md p-6 border rounded">
+    <div className="min-h-screen flex items-center justify-center bg-slate-950 text-slate-50 px-4">
+      <div className="w-full max-w-md p-6 border border-slate-800 rounded-xl bg-slate-900/70">
         <h2 className="text-2xl font-bold mb-4">Esqueci minha senha</h2>
 
         {!resetToken && !emailLinkSent && !recoveryMode ? (
@@ -231,7 +231,7 @@ export default function ForgotPassword() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="border rounded p-2 w-full mt-1"
+                className="border border-slate-700 bg-slate-950 rounded p-2 w-full mt-1"
                 placeholder="seu@email.com"
                 required
               />
@@ -241,34 +241,34 @@ export default function ForgotPassword() {
               <input
                 value={cpf}
                 onChange={(e) => setCpf(e.target.value)}
-                className="border rounded p-2 w-full mt-1"
+                className="border border-slate-700 bg-slate-950 rounded p-2 w-full mt-1"
                 placeholder="000.000.000-00"
               />
             </div>
-            <p className="text-xs text-gray-600">
+            <p className="text-xs text-slate-400">
               Se sua conta foi criada na tela "Criar conta", você pode validar apenas com o e-mail.
             </p>
-            {error && <div className="p-2 border rounded text-red-700 bg-red-50">{error}</div>}
-            {success && <div className="p-2 border rounded text-green-700 bg-green-50">{success}</div>}
+            {error && <div className="p-2 border border-red-700 rounded text-red-200 bg-red-900/40">{error}</div>}
+            {success && <div className="p-2 border border-emerald-700 rounded text-emerald-200 bg-emerald-900/40">{success}</div>}
             <button
               type="submit"
               disabled={loading}
-              className="w-full px-3 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-60"
+              className="w-full px-3 py-2 rounded bg-red-600 hover:bg-red-700 text-white disabled:opacity-60"
             >
               {loading ? 'Validando...' : 'Validar dados'}
             </button>
           </form>
         ) : emailLinkSent ? (
           <div className="space-y-3">
-            {success && <div className="p-2 border rounded text-green-700 bg-green-50">{success}</div>}
-            {error && <div className="p-2 border rounded text-red-700 bg-red-50">{error}</div>}
-            <div className="text-sm text-gray-700">
+            {success && <div className="p-2 border border-emerald-700 rounded text-emerald-200 bg-emerald-900/40">{success}</div>}
+            {error && <div className="p-2 border border-red-700 rounded text-red-200 bg-red-900/40">{error}</div>}
+            <div className="text-sm text-slate-300">
               Se não encontrar o e-mail, verifique a caixa de spam/lixo eletrônico.
             </div>
           </div>
         ) : (
           <form onSubmit={handleUpdatePassword} className="space-y-3">
-            <div className="p-2 border rounded bg-green-50 text-green-700 text-sm">
+            <div className="p-2 border border-emerald-700 rounded bg-emerald-900/40 text-emerald-200 text-sm">
               {recoveryMode ? 'Link validado. Defina sua nova senha.' : 'Dados validados. Defina sua nova senha.'}
             </div>
             <div>
@@ -277,7 +277,7 @@ export default function ForgotPassword() {
                 type="password"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-                className="border rounded p-2 w-full mt-1"
+                className="border border-slate-700 bg-slate-950 rounded p-2 w-full mt-1"
                 minLength={6}
                 required
               />
@@ -288,17 +288,17 @@ export default function ForgotPassword() {
                 type="password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="border rounded p-2 w-full mt-1"
+                className="border border-slate-700 bg-slate-950 rounded p-2 w-full mt-1"
                 minLength={6}
                 required
               />
             </div>
-            {error && <div className="p-2 border rounded text-red-700 bg-red-50">{error}</div>}
-            {success && <div className="p-2 border rounded text-green-700 bg-green-50">{success}</div>}
+            {error && <div className="p-2 border border-red-700 rounded text-red-200 bg-red-900/40">{error}</div>}
+            {success && <div className="p-2 border border-emerald-700 rounded text-emerald-200 bg-emerald-900/40">{success}</div>}
             <button
               type="submit"
               disabled={loading}
-              className="w-full px-3 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-60"
+              className="w-full px-3 py-2 rounded bg-red-600 hover:bg-red-700 text-white disabled:opacity-60"
             >
               {loading ? 'Atualizando...' : 'Atualizar senha'}
             </button>
@@ -306,7 +306,7 @@ export default function ForgotPassword() {
         )}
 
         <div className="mt-4 text-sm">
-          <Link to="/login" className="text-blue-600 hover:underline">Voltar para o login</Link>
+          <Link to="/login" className="text-red-300 hover:underline">Voltar para o login</Link>
         </div>
       </div>
     </div>

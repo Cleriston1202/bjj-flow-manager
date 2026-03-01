@@ -12,6 +12,7 @@ export interface AuthContextValue {
   user: any | null
   loading: boolean
   tenant: TenantInfo | null
+  role: 'admin' | 'professor'
   refreshTenant: () => Promise<void>
 }
 
@@ -20,6 +21,7 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any | null>(null)
   const [tenant, setTenant] = useState<TenantInfo | null>(null)
+  const [role, setRole] = useState<'admin' | 'professor'>('admin')
   const [loading, setLoading] = useState(true)
 
   async function loadSession() {
@@ -69,6 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!handleSupabaseAuthError(profileErr)) {
           console.error('Erro ao carregar profile do usuário', profileErr)
         }
+        setRole('admin')
         setTenant(null)
         return
       }
@@ -89,6 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               console.error('Erro ao criar organização padrão para o usuário', orgErr)
             }
           }
+          setRole('admin')
           setTenant(null)
           return
         }
@@ -104,6 +108,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (!handleSupabaseAuthError(updateProfileErr)) {
               console.error('Erro ao atualizar profile do usuário', updateProfileErr)
             }
+            setRole('admin')
             setTenant(null)
             return
           }
@@ -115,11 +120,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (!handleSupabaseAuthError(insertProfileErr)) {
               console.error('Erro ao criar profile do usuário', insertProfileErr)
             }
+            setRole('admin')
             setTenant(null)
             return
           }
         }
       }
+
+      const normalizedRole = String(profile?.role || 'admin').toLowerCase()
+      setRole(normalizedRole === 'professor' ? 'professor' : 'admin')
 
       const { data: orgRow, error: orgFetchErr } = await supabase
         .from('organizations')
@@ -133,6 +142,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             console.error('Erro ao carregar organização do tenant', orgFetchErr)
           }
         }
+        setRole('admin')
         setTenant(null)
         return
       }
@@ -145,6 +155,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
     } catch (e) {
       console.error('Erro ao carregar tenant', e)
+      setRole('admin')
       setTenant(null)
     }
   }
@@ -188,6 +199,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     loading,
     tenant,
+    role,
     refreshTenant: async () => {
       if (user?.id) await loadTenantForUser(user.id)
     },
