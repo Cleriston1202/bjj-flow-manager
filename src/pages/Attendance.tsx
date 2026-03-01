@@ -364,9 +364,26 @@ export default function Attendance() {
       if (sessionId) attendanceRow.session_id = sessionId
       if (selectedClassId) attendanceRow.technical_observation = `class_id:${selectedClassId}`
 
-      const { error: attendanceError } = await supabase
+      let { error: attendanceError } = await supabase
         .from('attendances')
         .insert([attendanceRow])
+
+      if (attendanceError) {
+        const errorMessage = String(attendanceError.message || '')
+        const missingColumnMatch = errorMessage.match(/'([^']+)' column/) || errorMessage.match(/column\s+['"]?([a-zA-Z0-9_]+)['"]?/i)
+        const missingColumn = missingColumnMatch?.[1]
+
+        if (missingColumn && Object.prototype.hasOwnProperty.call(attendanceRow, missingColumn)) {
+          const fallbackRow = { ...attendanceRow }
+          delete fallbackRow[missingColumn]
+
+          const retry = await supabase
+            .from('attendances')
+            .insert([fallbackRow])
+
+          attendanceError = retry.error
+        }
+      }
 
       if (attendanceError) {
         if (handleSupabaseAuthError(attendanceError)) {

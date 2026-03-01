@@ -61,8 +61,11 @@ function getMonthPayment(payments: any[], month: string) {
   const sameMonth = (payments || []).filter((p: any) => (p.start_date || '').slice(0, 7) === month)
   if (sameMonth.length === 0) return null
   const ordered = [...sameMonth].sort((a: any, b: any) => {
-    const ta = new Date(a.created_at || 0).getTime()
-    const tb = new Date(b.created_at || 0).getTime()
+    const paidA = a?.status === 'paid' ? 1 : 0
+    const paidB = b?.status === 'paid' ? 1 : 0
+    if (paidA !== paidB) return paidB - paidA
+    const ta = new Date(a.paid_at || a.created_at || 0).getTime()
+    const tb = new Date(b.paid_at || b.created_at || 0).getTime()
     return tb - ta
   })
   return ordered[0]

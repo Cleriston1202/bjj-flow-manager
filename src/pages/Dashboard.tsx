@@ -13,8 +13,11 @@ function getMonthPayment(payments: any[], month: string) {
   const sameMonth = (payments || []).filter((p: any) => (p.start_date || '').slice(0, 7) === month)
   if (sameMonth.length === 0) return null
   const ordered = [...sameMonth].sort((a: any, b: any) => {
-    const ta = new Date(a.created_at || 0).getTime()
-    const tb = new Date(b.created_at || 0).getTime()
+    const paidA = a?.status === 'paid' ? 1 : 0
+    const paidB = b?.status === 'paid' ? 1 : 0
+    if (paidA !== paidB) return paidB - paidA
+    const ta = new Date(a.paid_at || a.created_at || 0).getTime()
+    const tb = new Date(b.paid_at || b.created_at || 0).getTime()
     return tb - ta
   })
   return ordered[0]
@@ -23,6 +26,7 @@ function getMonthPayment(payments: any[], month: string) {
 export default function Dashboard() {
   const [activeCount, setActiveCount] = useState<number | null>(null)
   const [lateCount, setLateCount] = useState<number | null>(null)
+  const [pendingCount, setPendingCount] = useState<number | null>(null)
   const [readyCount, setReadyCount] = useState<number | null>(null)
   const [alertCount, setAlertCount] = useState<number | null>(null)
   const [revenueMonth, setRevenueMonth] = useState<number | null>(null)
@@ -112,18 +116,22 @@ export default function Dashboard() {
         return 'delinquent'
       }
 
-      const openStudentIds = new Set<string>()
+      const delinquentStudentIds = new Set<string>()
+      const pendingStudentIds = new Set<string>()
       for (const s of studentsList) {
         if (!isStudentActive(s)) continue
         const sPayments = paymentsByStudent[s.id] || []
-        const payment = sPayments.find((p: any) => (p.start_date || '').slice(0, 7) === currentMonth)
+        const payment = getMonthPayment(sPayments, currentMonth)
         const status = getPaymentStatus(payment, nowDate)
-        // Considera inadimplente no dashboard qualquer aluno com mensalidade do mês atual não paga
-        if (status !== 'paid') {
-          openStudentIds.add(s.id)
+        if (status === 'pending') {
+          pendingStudentIds.add(s.id)
+        }
+        if (status === 'late' || status === 'delinquent') {
+          delinquentStudentIds.add(s.id)
         }
       }
-      setLateCount(openStudentIds.size)
+      setLateCount(delinquentStudentIds.size)
+      setPendingCount(pendingStudentIds.size)
 
       const receivedMonth = studentsList.reduce((sum: number, s: any) => {
         if (!isStudentActive(s)) return sum
@@ -216,7 +224,7 @@ export default function Dashboard() {
           {loading ? 'Atualizando...' : 'Atualizar'}
         </button>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
         <div className="bg-gradient-to-br from-blue-600 to-blue-400 text-white rounded-xl shadow-lg p-6 flex flex-col items-center">
           <Users size={36} className="mb-2" />
           <span className="text-lg">Alunos ativos</span>
@@ -226,6 +234,11 @@ export default function Dashboard() {
           <AlertCircle size={36} className="mb-2" />
           <span className="text-lg">Inadimplentes</span>
           <span className="text-3xl font-bold mt-1">{lateCount ?? (loading? '...' : 0)}</span>
+        </div>
+        <div className="bg-gradient-to-br from-amber-500 to-yellow-400 text-white rounded-xl shadow-lg p-6 flex flex-col items-center">
+          <AlertCircle size={36} className="mb-2" />
+          <span className="text-lg">Pendentes</span>
+          <span className="text-3xl font-bold mt-1">{pendingCount ?? (loading? '...' : 0)}</span>
         </div>
         <div className="bg-gradient-to-br from-emerald-600 to-green-500 text-white rounded-xl shadow-lg p-6 flex flex-col items-center">
           <Wallet size={36} className="mb-2" />
