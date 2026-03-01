@@ -35,6 +35,7 @@ export default function StudentForm({
   onSaved: (student: Student) => void
   onCancel: () => void
 }) {
+  const todayDueDay = new Date().getDate()
   const [form, setForm] = useState<Student>(
     initial || {
       full_name: '',
@@ -47,7 +48,7 @@ export default function StudentForm({
         cpf: '',
         plan: 'Mensal',
         monthly_fee: 100,
-        due_day: 10,
+        due_day: todayDueDay,
         status: 'Ativo',
         modality: 'Jiu-Jitsu',
       },

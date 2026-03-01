@@ -401,7 +401,7 @@ function monthBounds(ym) {
 }
 function dueDateForMonth(student, ym) {
   const [y, m] = String(ym).split('-').map(x => Number(x))
-  const sinceIso = student.belt_since || student.created_at || new Date().toISOString()
+  const sinceIso = student.created_at || student.belt_since || new Date().toISOString()
   const since = new Date(sinceIso)
   const day = since.getDate()
   const lastDay = new Date(y, m, 0).getDate()

@@ -44,6 +44,51 @@ function computePaymentStatus(payment: any, today = new Date()) {
 
 const MIN_CHECKINS_30D = 8
 
+async function loadClassSchedulesForTenant(tenantOrganizationId: string) {
+  const { data, error } = await supabase
+    .from('classes')
+    .select('id, name, modality, professor_name, weekday, start_time, end_time, active')
+    .eq('organization_id', tenantOrganizationId)
+
+  if (!error) {
+    return (data || []).map((row: any) => ({
+      id: row.id,
+      name: row.name,
+      modality: row.modality,
+      professor: row.professor_name,
+      weekday: row.weekday,
+      startTime: row.start_time,
+      endTime: row.end_time,
+      active: row.active !== false,
+    }))
+  }
+
+  const classErr = String(error?.message || '').toLowerCase()
+  if (!classErr.includes('classes')) return []
+
+  const tryColumns = ['organization_id', 'org_id']
+  for (const orgCol of tryColumns) {
+    const { data: classSettings, error: settingsErr } = await supabase
+      .from('settings')
+      .select('value')
+      .eq(orgCol as any, tenantOrganizationId)
+      .eq('key', 'class_schedules')
+      .maybeSingle()
+
+    if (!settingsErr) {
+      const classes = Array.isArray(classSettings?.value) ? classSettings?.value : []
+      return classes
+    }
+
+    const settingsMsg = String(settingsErr?.message || '').toLowerCase()
+    if (!(settingsMsg.includes('column') || settingsMsg.includes('schema cache'))) {
+      return []
+    }
+  }
+
+  return []
+}
+
 function playBeep(kind: 'success' | 'error') {
   if (typeof window === 'undefined') return
   const AnyWindow = window as any
@@ -124,13 +169,7 @@ export default function Attendance() {
       }
       if (data) setStudents(data)
 
-      const { data: classSettings } = await supabase
-        .from('settings')
-        .select('value')
-        .eq('organization_id', tenant.organizationId)
-        .eq('key', 'class_schedules')
-        .maybeSingle()
-      const classes = Array.isArray(classSettings?.value) ? classSettings?.value : []
+      const classes = await loadClassSchedulesForTenant(tenant.organizationId)
       setClassSchedules(classes as ClassSchedule[])
       const firstActive = (classes as ClassSchedule[]).find((c) => c.active)
       if (firstActive && !selectedClassId) {

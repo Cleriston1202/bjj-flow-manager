@@ -24,6 +24,7 @@ export default function ClassSchedules() {
   const { tenant, role } = useAuth()
   const canManage = role === 'admin'
   const [classes, setClasses] = useState<ClassSchedule[]>([])
+  const [storageMode, setStorageMode] = useState<'classes' | 'settings'>('classes')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [form, setForm] = useState<ClassSchedule>({
@@ -37,18 +38,98 @@ export default function ClassSchedules() {
     active: true,
   })
 
+  function mapDbRowToClass(row: any): ClassSchedule {
+    return {
+      id: row.id,
+      name: row.name,
+      modality: row.modality,
+      professor: row.professor_name,
+      weekday: row.weekday,
+      startTime: row.start_time,
+      endTime: row.end_time,
+      active: row.active !== false,
+    }
+  }
+
+  async function loadLegacyFromSettings() {
+    if (!tenant) return [] as ClassSchedule[]
+    const tryColumns = ['organization_id', 'org_id']
+    for (const orgCol of tryColumns) {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('value')
+        .eq(orgCol as any, tenant.organizationId)
+        .eq('key', 'class_schedules')
+        .maybeSingle()
+
+      if (!error) {
+        const value = data?.value
+        return (Array.isArray(value) ? value : []) as ClassSchedule[]
+      }
+
+      const msg = String(error?.message || '').toLowerCase()
+      if (!(msg.includes('column') || msg.includes('schema cache'))) {
+        if (!handleSupabaseAuthError(error)) {
+          setMessage(error.message || 'Erro ao carregar horários de aula.')
+        }
+        return [] as ClassSchedule[]
+      }
+    }
+    return [] as ClassSchedule[]
+  }
+
+  async function saveLegacyToSettings(next: ClassSchedule[]) {
+    if (!tenant) return false
+    const tryColumns = ['organization_id', 'org_id']
+    for (const orgCol of tryColumns) {
+      const payload: any = {
+        key: 'class_schedules',
+        value: next,
+        updated_at: new Date().toISOString(),
+      }
+      payload[orgCol] = tenant.organizationId
+
+      const { error } = await supabase
+        .from('settings')
+        .upsert([payload], { onConflict: `${orgCol},key` })
+
+      if (!error) {
+        setClasses(next)
+        setMessage('Horários de aula atualizados.')
+        return true
+      }
+
+      const msg = String(error?.message || '').toLowerCase()
+      if (!(msg.includes('column') || msg.includes('schema cache'))) {
+        if (!handleSupabaseAuthError(error)) {
+          setMessage(error.message || 'Erro ao salvar horários de aula.')
+        }
+        return false
+      }
+    }
+    setMessage('Não foi possível salvar horários. Execute a migração de banco mais recente.')
+    return false
+  }
+
   async function load() {
     if (!tenant) return
     setLoading(true)
     setMessage(null)
     const { data, error } = await supabase
-      .from('settings')
-      .select('value')
+      .from('classes')
+      .select('id, name, modality, professor_name, weekday, start_time, end_time, active')
       .eq('organization_id', tenant.organizationId)
-      .eq('key', 'class_schedules')
-      .maybeSingle()
 
-    if (error) {
+    if (!error) {
+      const list = (data || []).map(mapDbRowToClass)
+      setClasses(list)
+      setStorageMode('classes')
+      setLoading(false)
+      return
+    }
+
+    const errorMsg = String(error?.message || '').toLowerCase()
+    if (!errorMsg.includes('classes')) {
       if (!handleSupabaseAuthError(error)) {
         setMessage(error.message || 'Erro ao carregar horários de aula.')
       }
@@ -56,31 +137,10 @@ export default function ClassSchedules() {
       return
     }
 
-    const value = data?.value
-    const list = Array.isArray(value) ? value : []
-    setClasses(list as ClassSchedule[])
+    const legacy = await loadLegacyFromSettings()
+    setClasses(legacy)
+    setStorageMode('settings')
     setLoading(false)
-  }
-
-  async function save(next: ClassSchedule[]) {
-    if (!tenant) return
-    const payload = {
-      organization_id: tenant.organizationId,
-      key: 'class_schedules',
-      value: next,
-      updated_at: new Date().toISOString(),
-    }
-
-    const { error } = await supabase.from('settings').upsert([payload], { onConflict: 'organization_id,key' })
-    if (error) {
-      if (!handleSupabaseAuthError(error)) {
-        setMessage(error.message || 'Erro ao salvar horários de aula.')
-      }
-      return
-    }
-
-    setClasses(next)
-    setMessage('Horários de aula atualizados.')
   }
 
   useEffect(() => { if (tenant) load() }, [tenant])
@@ -119,12 +179,60 @@ export default function ClassSchedules() {
       professor: form.professor.trim(),
     }
 
-    const exists = classes.some((c) => c.id === item.id)
-    const next = exists
-      ? classes.map((c) => (c.id === item.id ? item : c))
-      : [...classes, item]
+    if (storageMode === 'classes') {
+      if (!tenant) return
+      if (form.id) {
+        const { error } = await supabase
+          .from('classes')
+          .update({
+            name: item.name,
+            modality: item.modality,
+            professor_name: item.professor,
+            weekday: item.weekday,
+            start_time: item.startTime,
+            end_time: item.endTime,
+            active: item.active,
+          })
+          .eq('id', item.id)
+          .eq('organization_id', tenant.organizationId)
+        if (error) {
+          if (!handleSupabaseAuthError(error)) {
+            setMessage(error.message || 'Erro ao atualizar aula.')
+          }
+          return
+        }
+      } else {
+        const { error } = await supabase
+          .from('classes')
+          .insert([
+            {
+              organization_id: tenant.organizationId,
+              name: item.name,
+              modality: item.modality,
+              professor_name: item.professor,
+              weekday: item.weekday,
+              start_time: item.startTime,
+              end_time: item.endTime,
+              active: item.active,
+            },
+          ])
+        if (error) {
+          if (!handleSupabaseAuthError(error)) {
+            setMessage(error.message || 'Erro ao cadastrar aula.')
+          }
+          return
+        }
+      }
+      await load()
+      setMessage('Horários de aula atualizados.')
+    } else {
+      const exists = classes.some((c) => c.id === item.id)
+      const next = exists
+        ? classes.map((c) => (c.id === item.id ? item : c))
+        : [...classes, item]
+      await saveLegacyToSettings(next)
+    }
 
-    await save(next)
     setForm({
       id: '',
       name: '',
@@ -143,15 +251,43 @@ export default function ClassSchedules() {
 
   async function handleToggleActive(item: ClassSchedule) {
     if (!canManage) return
+    if (storageMode === 'classes') {
+      const { error } = await supabase
+        .from('classes')
+        .update({ active: !item.active })
+        .eq('id', item.id)
+      if (error) {
+        if (!handleSupabaseAuthError(error)) {
+          setMessage(error.message || 'Erro ao atualizar status da aula.')
+        }
+        return
+      }
+      await load()
+      return
+    }
     const next = classes.map((c) => (c.id === item.id ? { ...c, active: !c.active } : c))
-    await save(next)
+    await saveLegacyToSettings(next)
   }
 
   async function handleDelete(item: ClassSchedule) {
     if (!canManage) return
     if (!window.confirm(`Remover a aula ${item.name}?`)) return
+    if (storageMode === 'classes') {
+      const { error } = await supabase
+        .from('classes')
+        .delete()
+        .eq('id', item.id)
+      if (error) {
+        if (!handleSupabaseAuthError(error)) {
+          setMessage(error.message || 'Erro ao excluir aula.')
+        }
+        return
+      }
+      await load()
+      return
+    }
     const next = classes.filter((c) => c.id !== item.id)
-    await save(next)
+    await saveLegacyToSettings(next)
   }
 
   return (

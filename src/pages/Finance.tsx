@@ -47,6 +47,16 @@ function isStudentActive(student: any) {
   return student?.active !== false && status !== 'Cancelado'
 }
 
+function getEnrollmentDueDay(student: any) {
+  const enrollmentIso = student?.created_at || student?.belt_since
+  const enrollmentDate = enrollmentIso ? new Date(enrollmentIso) : null
+  const enrollmentDay = enrollmentDate && !Number.isNaN(enrollmentDate.getTime()) ? enrollmentDate.getDate() : null
+  if (enrollmentDay && enrollmentDay >= 1 && enrollmentDay <= 31) return enrollmentDay
+  const configuredDueDay = Number(student?.contact?.due_day)
+  if (configuredDueDay >= 1 && configuredDueDay <= 31) return configuredDueDay
+  return 10
+}
+
 function getMonthPayment(payments: any[], month: string) {
   const sameMonth = (payments || []).filter((p: any) => (p.start_date || '').slice(0, 7) === month)
   if (sameMonth.length === 0) return null
@@ -162,7 +172,7 @@ export default function Finance() {
         if (!isStudentActive(s)) continue
         const hasPayment = paymentsForMonth.some((p: any) => p.student_id === s.id)
         if (!hasPayment) {
-          const dueDay = Math.max(1, Math.min(31, Number(s.contact?.due_day ?? 10)))
+          const dueDay = Math.max(1, Math.min(31, getEnrollmentDueDay(s)))
           const safeDue = Math.min(dueDay, last)
           toInsert.push({
             organization_id: tenant?.organizationId,
