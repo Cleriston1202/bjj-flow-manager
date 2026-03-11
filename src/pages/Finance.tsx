@@ -156,20 +156,14 @@ export default function Finance() {
   const ensuredMonthsRef = useRef<Record<string, boolean>>({})
   useEffect(() => {
     async function ensureMonthlyPayments() {
+      if (!tenant) return
+      if (loading) return
       if (!Object.keys(students).length) return
       if (ensuredMonthsRef.current[selectedMonth]) return
       const [yy, mm] = selectedMonth.split('-').map((v)=>Number(v))
       const last = new Date(yy, mm, 0).getDate()
       const monthStart = `${selectedMonth}-01`
-      const monthEnd = `${selectedMonth}-${String(last).padStart(2,'0')}`
-      const { data: pdata, error: pErr } = await supabase.from('payments').select('*').gte('start_date', monthStart).lte('end_date', monthEnd)
-      if (pErr) {
-        if (!handleSupabaseAuthError(pErr)) {
-          console.error('Erro ao garantir mensalidades do mês', pErr)
-        }
-        return
-      }
-      const paymentsForMonth = Array.isArray(pdata) ? pdata : []
+      const paymentsForMonth = payments
       const toInsert: any[] = []
       for (const s of Object.values(students)) {
         if (!isStudentActive(s)) continue
@@ -201,7 +195,7 @@ export default function Finance() {
     }
     ensureMonthlyPayments()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMonth, students])
+  }, [selectedMonth, students, payments, loading, tenant])
 
   // Agrupar pagamentos por aluno
   const paymentsByStudent: Record<string, any[]> = {}

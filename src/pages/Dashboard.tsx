@@ -52,10 +52,24 @@ export default function Dashboard() {
         return
       }
       // fetch students, attendances and payments apenas da organização atual
-      const { data: students, error: studentsError } = await supabase
-        .from('students')
-        .select('*')
-        .eq('organization_id', tenant.organizationId)
+      const [
+        { data: students, error: studentsError },
+        { data: attendances, error: attendancesError },
+        { data: payments, error: paymentsError },
+      ] = await Promise.all([
+        supabase
+          .from('students')
+          .select('id, full_name, active, contact, current_belt, current_degree, belt_since, created_at')
+          .eq('organization_id', tenant.organizationId),
+        supabase
+          .from('attendances')
+          .select('student_id, attended_at')
+          .eq('organization_id', tenant.organizationId),
+        supabase
+          .from('payments')
+          .select('student_id, status, amount, start_date, end_date, paid_at, created_at')
+          .eq('organization_id', tenant.organizationId),
+      ])
       if (studentsError) {
         if (!handleSupabaseAuthError(studentsError)) {
           console.error('Erro ao carregar alunos para o dashboard', studentsError)
@@ -63,11 +77,6 @@ export default function Dashboard() {
         setLoading(false)
         return
       }
-
-      const { data: attendances, error: attendancesError } = await supabase
-        .from('attendances')
-        .select('*')
-        .eq('organization_id', tenant.organizationId)
       if (attendancesError) {
         if (!handleSupabaseAuthError(attendancesError)) {
           console.error('Erro ao carregar presenças para o dashboard', attendancesError)
@@ -75,11 +84,6 @@ export default function Dashboard() {
         setLoading(false)
         return
       }
-
-      const { data: payments, error: paymentsError } = await supabase
-        .from('payments')
-        .select('*')
-        .eq('organization_id', tenant.organizationId)
       if (paymentsError) {
         if (!handleSupabaseAuthError(paymentsError)) {
           console.error('Erro ao carregar pagamentos para o dashboard', paymentsError)
@@ -143,17 +147,25 @@ export default function Dashboard() {
       setRevenueMonth(receivedMonth)
 
       const dayFormatter = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit' })
+      const toDayKey = (dateValue: string | Date) => {
+        const d = new Date(dateValue)
+        const y = d.getFullYear()
+        const m = String(d.getMonth() + 1).padStart(2, '0')
+        const day = String(d.getDate()).padStart(2, '0')
+        return `${y}-${m}-${day}`
+      }
+      const attendancesByDay = new Map<string, number>()
+      for (const a of attendList) {
+        if (!a?.attended_at) continue
+        const key = toDayKey(a.attended_at)
+        attendancesByDay.set(key, (attendancesByDay.get(key) || 0) + 1)
+      }
       const last7: { day: string; count: number }[] = []
       for (let i = 6; i >= 0; i--) {
         const d = new Date()
         d.setHours(0, 0, 0, 0)
         d.setDate(d.getDate() - i)
-        const next = new Date(d)
-        next.setDate(d.getDate() + 1)
-        const count = attendList.filter((a: any) => {
-          const t = new Date(a.attended_at).getTime()
-          return t >= d.getTime() && t < next.getTime()
-        }).length
+        const count = attendancesByDay.get(toDayKey(d)) || 0
         last7.push({ day: dayFormatter.format(d), count })
       }
       setAttendanceLast7Days(last7)
@@ -252,17 +264,19 @@ export default function Dashboard() {
         <p className="text-sm text-gray-500 mb-4">Evolução diária de presenças da semana.</p>
         <div className="overflow-x-auto">
           <div className="grid grid-cols-7 gap-3 items-end h-48 min-w-[520px]">
-            {attendanceLast7Days.map((p) => {
+            {(() => {
               const max = Math.max(1, ...attendanceLast7Days.map((d) => d.count))
-              const height = Math.max(8, Math.round((p.count / max) * 100))
-              return (
-                <div key={p.day} className="flex flex-col items-center justify-end bg-gray-50 rounded-lg p-2 h-full">
-                  <div className="text-sm font-semibold text-gray-700 mb-2">{p.count}</div>
-                  <div className="w-10 bg-gradient-to-t from-red-500 to-red-400 rounded-t-md" style={{ height: `${height}%` }} />
-                  <div className="text-xs sm:text-sm font-medium text-gray-600 mt-2 text-center">{p.day}</div>
-                </div>
-              )
-            })}
+              return attendanceLast7Days.map((p) => {
+                const height = Math.max(8, Math.round((p.count / max) * 100))
+                return (
+                  <div key={p.day} className="flex flex-col items-center justify-end bg-gray-50 rounded-lg p-2 h-full">
+                    <div className="text-sm font-semibold text-gray-700 mb-2">{p.count}</div>
+                    <div className="w-10 bg-gradient-to-t from-red-500 to-red-400 rounded-t-md" style={{ height: `${height}%` }} />
+                    <div className="text-xs sm:text-sm font-medium text-gray-600 mt-2 text-center">{p.day}</div>
+                  </div>
+                )
+              })
+            })()}
           </div>
         </div>
       </section>

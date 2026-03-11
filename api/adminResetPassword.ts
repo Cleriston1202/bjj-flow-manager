@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { assertPasswordIsNotLeaked } from './lib/passwordSecurity'
 
 function getServerConfig() {
   const SUPABASE_URL = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -48,6 +49,18 @@ export default async function handler(req: any, res: any) {
 
   if (String(newPassword).length < 6) {
     res.status(400).json({ error: 'A senha temporária deve ter ao menos 6 caracteres.' })
+    return
+  }
+
+  try {
+    await assertPasswordIsNotLeaked(String(newPassword))
+  } catch (leakErr: any) {
+    const message = String(leakErr?.message || '')
+    if (message.includes('HIBP API unavailable')) {
+      res.status(503).json({ error: 'Serviço de segurança de senha indisponível. Tente novamente em instantes.' })
+      return
+    }
+    res.status(400).json({ error: message || 'Senha comprometida detectada.' })
     return
   }
 

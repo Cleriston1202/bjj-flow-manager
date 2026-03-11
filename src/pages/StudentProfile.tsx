@@ -142,8 +142,17 @@ export default function StudentProfile() {
       )}
 
       {showResetModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-xl border border-slate-700 bg-slate-900 p-4">
+        <div
+          className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+          onClick={() => {
+            setShowResetModal(false)
+            setTemporaryPassword('')
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-xl border border-slate-700 bg-slate-900 p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="text-lg font-semibold mb-2">Resetar Senha do Aluno</h3>
             <p className="text-sm text-slate-300 mb-3">Defina uma senha temporária para o aluno.</p>
             <input
@@ -157,12 +166,10 @@ export default function StudentProfile() {
             <div className="mt-4 flex flex-col-reverse sm:flex-row justify-end gap-2">
               <button
                 onClick={() => {
-                  if (resetLoading) return
                   setShowResetModal(false)
                   setTemporaryPassword('')
                 }}
                 className="px-4 py-2 rounded border border-slate-700 bg-slate-900 text-slate-100 hover:bg-slate-800"
-                disabled={resetLoading}
               >
                 Cancelar
               </button>

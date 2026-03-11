@@ -79,6 +79,49 @@ function verifyPayload(token, secret) {
   }
 }
 
+function sha1HexUpper(value) {
+  return crypto.createHash('sha1').update(String(value || ''), 'utf8').digest('hex').toUpperCase()
+}
+
+async function assertPasswordIsNotLeaked(password) {
+  const hash = sha1HexUpper(password)
+  const prefix = hash.slice(0, 5)
+  const suffix = hash.slice(5)
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 8000)
+  let response
+  try {
+    response = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`, {
+      method: 'GET',
+      headers: {
+        'Add-Padding': 'true',
+      },
+      signal: controller.signal,
+    })
+  } catch (err) {
+    if (err && err.name === 'AbortError') {
+      throw new Error('HIBP API unavailable (timeout)')
+    }
+    throw err
+  } finally {
+    clearTimeout(timeout)
+  }
+
+  if (!response.ok) {
+    throw new Error(`HIBP API unavailable (${response.status})`)
+  }
+
+  const body = await response.text()
+  const lines = body.split(/\r?\n/)
+  for (const line of lines) {
+    const [candidateSuffix, count] = String(line || '').split(':')
+    if (!candidateSuffix || !count) continue
+    if (candidateSuffix.trim().toUpperCase() === suffix) {
+      throw new Error('Esta senha já apareceu em vazamentos públicos. Escolha outra senha.')
+    }
+  }
+}
+
 async function findUserIdByEmail(supabase, email) {
   const normalized = normalizeEmail(email)
   if (!normalized) return null
@@ -215,6 +258,18 @@ app.post('/api/forgotPassword', async (req, res) => {
 
       if (newPassword.length < 6) {
         res.status(400).json({ error: 'A nova senha deve ter ao menos 6 caracteres.' })
+        return
+      }
+
+      try {
+        await assertPasswordIsNotLeaked(newPassword)
+      } catch (leakErr) {
+        const message = String(leakErr?.message || '')
+        if (message.includes('HIBP API unavailable')) {
+          res.status(503).json({ error: 'Serviço de segurança de senha indisponível. Tente novamente em instantes.' })
+          return
+        }
+        res.status(400).json({ error: message || 'Senha comprometida detectada.' })
         return
       }
 

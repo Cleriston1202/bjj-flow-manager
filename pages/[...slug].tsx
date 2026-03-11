@@ -9,3 +9,9 @@ const NextRoot = dynamic(() => import('../src/NextRoot'), { ssr: false })
 export default function RootCatchAllPage() {
   return <NextRoot />
 }
+
+// Force this catch-all to be server-rendered so Next always emits
+// `.next/server/pages/[...slug].js` used at runtime for unmatched paths.
+export async function getServerSideProps() {
+  return { props: {} }
+}
