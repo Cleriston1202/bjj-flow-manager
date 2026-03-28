@@ -3,7 +3,7 @@ import { supabase, handleSupabaseAuthError } from '../lib/supabaseClient'
 import { useAuth } from '../lib/AuthContext'
 import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription } from '@radix-ui/react-dialog'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@radix-ui/react-dropdown-menu'
-import { BadgeCheck, BadgeAlert, BadgeX, BadgeDollarSign, Loader2, User, CreditCard, Banknote, AlertCircle, FileText, FileSpreadsheet, Bell } from 'lucide-react'
+import { BadgeDollarSign, Loader2, User, CreditCard, Banknote, AlertCircle, FileText, FileSpreadsheet, Bell } from 'lucide-react'
 
 // Utilitário para obter o mês atual em yyyy-mm
 function getCurrentMonth() {
@@ -97,6 +97,8 @@ export default function Finance() {
   const [settleAmount, setSettleAmount] = useState('')
   const [settleLoading, setSettleLoading] = useState(false)
   const [historyOpenFor, setHistoryOpenFor] = useState<string | null>(null)
+  const [historyData, setHistoryData] = useState<Record<string, any[]>>({})
+  const [historyLoading, setHistoryLoading] = useState<string | null>(null)
   const [sendingReminder, setSendingReminder] = useState(false)
   const { tenant, role } = useAuth()
 
@@ -157,6 +159,23 @@ export default function Finance() {
   }, [selectedMonth, tenant])
 
   useEffect(() => { if (tenant) load() }, [load, tenant])
+
+  async function loadHistory(studentId: string) {
+    if (historyData[studentId]) return
+    setHistoryLoading(studentId)
+    try {
+      const { data, error } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('student_id', studentId)
+        .order('start_date', { ascending: false })
+      if (!error && data) {
+        setHistoryData(prev => ({ ...prev, [studentId]: data }))
+      }
+    } finally {
+      setHistoryLoading(null)
+    }
+  }
 
   // Geração automática de mensalidades pendentes para cada aluno ativo
   const ensuredMonthsRef = useRef<Record<string, boolean>>({})
@@ -384,120 +403,140 @@ export default function Finance() {
       {loading && <div className="flex items-center gap-2 text-slate-400"><Loader2 className="animate-spin" /> Carregando...</div>}
       <div className="border border-slate-800 rounded divide-y divide-slate-800 bg-slate-900/60">
         {rowsToDisplay.map(({ student: s, payment, status, olderUnpaid }) => (
-          <div key={s.id} className="p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-            <div className="min-w-0">
-              <div className="font-semibold flex items-center gap-2">
-                <User size={18} className="inline text-blue-600" /> {s.full_name}
-                {olderUnpaid > 0 && (
-                  <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded bg-red-200 text-red-800 text-xs">
-                    <AlertCircle size={14} /> {olderUnpaid} pendência(s)
-                  </span>
-                )}
+          <div key={s.id} className="flex flex-col">
+            <div className="p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div className="min-w-0">
+                <div className="font-semibold flex items-center gap-2">
+                  <User size={18} className="inline text-blue-600" /> {s.full_name}
+                  {olderUnpaid > 0 && (
+                    <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded bg-red-200 text-red-800 text-xs">
+                      <AlertCircle size={14} /> {olderUnpaid} pendência(s)
+                    </span>
+                  )}
+                </div>
+                <div className="text-sm text-slate-300 flex flex-wrap items-center gap-2 mt-1">
+                  <span className={`inline-block px-2 py-0.5 rounded ${getStatusColor(status)}`}>{getStatusLabel(status)}</span>
+                  {payment && (
+                    <>
+                      <span>• R$ {Number(payment.amount ?? 0).toFixed(2)}</span>
+                      <span>• Venc: {payment.end_date ? new Date(payment.end_date + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}</span>
+                    </>
+                  )}
+                </div>
               </div>
-              <div className="text-sm text-slate-300 flex flex-wrap items-center gap-2 mt-1">
-                <span className={`inline-block px-2 py-0.5 rounded ${getStatusColor(status)}`}>{getStatusLabel(status)}</span>
-                {payment && (
-                  <>
-                    <span>• R$ {Number(payment.amount ?? 0).toFixed(2)}</span>
-                    <span>• Venc: {payment.end_date ? new Date(payment.end_date).toLocaleDateString() : '-'}</span>
-                  </>
-                )}
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 md:justify-end">
-              {status !== 'paid' && payment && (
-                <Dialog open={modal.open && modal.payment?.id === payment.id} onOpenChange={open => setModal(open ? { open, payment, student: s } : { open: false })}>
-                  <DialogTrigger asChild>
-                    <button
-                      className="px-3 py-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white text-sm"
-                      onClick={() => {
-                        setSettleAmount(payment?.amount != null ? String(payment.amount) : '')
-                        // preenche automaticamente com a data de hoje no formato yyyy-mm-dd
-                        setSettleDate(new Date().toISOString().slice(0, 10))
-                        setModal({ open: true, payment, student: s })
-                      }}
-                    >Baixa manual</button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-md w-full bg-white text-slate-900 p-6 rounded shadow-lg">
-                    <DialogTitle className="text-lg font-bold mb-2">Baixa manual de pagamento</DialogTitle>
-                    <DialogDescription className="mb-4">Confirme os dados do recebimento para <span className="font-semibold">{s.full_name}</span> referente a <span className="font-semibold">{selectedMonth}</span>.</DialogDescription>
-                    <div className="mb-3">
-                      <label className="block text-sm mb-1 text-slate-700">Valor recebido (R$)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        className="border border-slate-300 bg-white text-slate-900 px-3 py-2 rounded w-full"
-                        value={settleAmount}
-                        onChange={e => setSettleAmount(e.target.value)}
-                      />
-                    </div>
-                    <div className="mb-3">
-                      <label className="block text-sm mb-1 text-slate-700">Forma de Pagamento</label>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button className="border border-slate-300 bg-white text-slate-900 px-3 py-2 rounded w-full flex items-center gap-2">
-                            {paymentMethods.find(m=>m.label===settleMethod)?.icon}
-                            {settleMethod}
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent className="bg-white border rounded shadow text-slate-900">
-                          {paymentMethods.map(m => (
-                            <DropdownMenuItem
-                              key={m.label}
-                              onSelect={()=>setSettleMethod(m.label)}
-                              className="flex items-center gap-2 cursor-pointer px-2 py-1 hover:bg-slate-100"
-                            >
-                              {m.icon} {m.label}
-                            </DropdownMenuItem>
-                          ))}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                    <div className="mb-3">
-                      <label className="block text-sm mb-1 text-slate-700">Data do Recebimento</label>
-                      <input
-                        type="date"
-                        className="border border-slate-300 bg-white text-slate-900 px-3 py-2 rounded w-full"
-                        value={settleDate}
-                        onChange={e=>setSettleDate(e.target.value)}
-                      />
-                    </div>
-                    <div className="flex justify-end gap-2 mt-4">
-                      <button className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 text-slate-900" onClick={()=>setModal({ open: false })}>Cancelar</button>
+              <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                {status !== 'paid' && payment && (
+                  <Dialog open={modal.open && modal.payment?.id === payment.id} onOpenChange={open => setModal(open ? { open, payment, student: s } : { open: false })}>
+                    <DialogTrigger asChild>
                       <button
-                        className="px-4 py-2 rounded bg-green-600 hover:bg-green-700 text-white"
-                        disabled={settleLoading}
-                        onClick={()=>handleManualPayment(payment)}
-                      >{settleLoading ? <Loader2 className="animate-spin inline" /> : 'Confirmar'}</button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              )}
-              <button
-                className="px-3 py-1 rounded border border-slate-700 text-sm"
-                onClick={() => setHistoryOpenFor(historyOpenFor === s.id ? null : s.id)}
-              >
-                Histórico
-              </button>
+                        className="px-3 py-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white text-sm"
+                        onClick={() => {
+                          setSettleAmount(payment?.amount != null ? String(payment.amount) : '')
+                          setSettleDate(new Date().toISOString().slice(0, 10))
+                          setModal({ open: true, payment, student: s })
+                        }}
+                      >Baixa manual</button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-md w-full bg-white text-slate-900 p-6 rounded shadow-lg">
+                      <DialogTitle className="text-lg font-bold mb-2">Baixa manual de pagamento</DialogTitle>
+                      <DialogDescription className="mb-4">Confirme os dados do recebimento para <span className="font-semibold">{s.full_name}</span> referente a <span className="font-semibold">{selectedMonth}</span>.</DialogDescription>
+                      <div className="mb-3">
+                        <label className="block text-sm mb-1 text-slate-700">Valor recebido (R$)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          className="border border-slate-300 bg-white text-slate-900 px-3 py-2 rounded w-full"
+                          value={settleAmount}
+                          onChange={e => setSettleAmount(e.target.value)}
+                        />
+                      </div>
+                      <div className="mb-3">
+                        <label className="block text-sm mb-1 text-slate-700">Forma de Pagamento</label>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button className="border border-slate-300 bg-white text-slate-900 px-3 py-2 rounded w-full flex items-center gap-2">
+                              {paymentMethods.find(m=>m.label===settleMethod)?.icon}
+                              {settleMethod}
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent className="bg-white border rounded shadow text-slate-900">
+                            {paymentMethods.map(m => (
+                              <DropdownMenuItem
+                                key={m.label}
+                                onSelect={()=>setSettleMethod(m.label)}
+                                className="flex items-center gap-2 cursor-pointer px-2 py-1 hover:bg-slate-100"
+                              >
+                                {m.icon} {m.label}
+                              </DropdownMenuItem>
+                            ))}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                      <div className="mb-3">
+                        <label className="block text-sm mb-1 text-slate-700">Data do Recebimento</label>
+                        <input
+                          type="date"
+                          className="border border-slate-300 bg-white text-slate-900 px-3 py-2 rounded w-full"
+                          value={settleDate}
+                          onChange={e=>setSettleDate(e.target.value)}
+                        />
+                      </div>
+                      <div className="flex justify-end gap-2 mt-4">
+                        <button className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 text-slate-900" onClick={()=>setModal({ open: false })}>Cancelar</button>
+                        <button
+                          className="px-4 py-2 rounded bg-green-600 hover:bg-green-700 text-white"
+                          disabled={settleLoading}
+                          onClick={()=>handleManualPayment(payment)}
+                        >{settleLoading ? <Loader2 className="animate-spin inline" /> : 'Confirmar'}</button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                )}
+                <button
+                  className={`px-3 py-1 rounded border text-sm ${historyOpenFor === s.id ? 'border-indigo-500 text-indigo-300 bg-slate-800' : 'border-slate-700 text-slate-300'}`}
+                  onClick={() => {
+                    const next = historyOpenFor === s.id ? null : s.id
+                    setHistoryOpenFor(next)
+                    if (next) loadHistory(next)
+                  }}
+                >
+                  Histórico
+                </button>
+              </div>
             </div>
+
+            {historyOpenFor === s.id && (
+              <div className="px-4 pb-4 border-t border-slate-800 bg-slate-900/40">
+                <div className="pt-3 pb-1 text-xs font-semibold text-slate-400 uppercase tracking-wide">Histórico completo de pagamentos</div>
+                {historyLoading === s.id ? (
+                  <div className="flex items-center gap-2 text-slate-400 text-sm py-2"><Loader2 size={14} className="animate-spin" /> Carregando...</div>
+                ) : (historyData[s.id] || []).length === 0 ? (
+                  <div className="text-sm text-slate-500 py-2">Nenhum pagamento encontrado.</div>
+                ) : (
+                  <div className="divide-y divide-slate-800">
+                    {(historyData[s.id] || []).map((p: any) => (
+                      <div key={p.id} className="py-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-sm">
+                        <span className="text-slate-300">
+                          {String(p.start_date || '').slice(0, 7)}
+                          <span className="text-slate-500 ml-2">Venc: {p.end_date ? new Date(p.end_date + 'T00:00:00').toLocaleDateString('pt-BR') : '-'}</span>
+                          {p.paid_at && <span className="text-slate-500 ml-2">Pago: {new Date(p.paid_at).toLocaleDateString('pt-BR')}</span>}
+                          {p.payment_method && <span className="text-slate-500 ml-2">• {p.payment_method}</span>}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded text-xs ${getStatusColor(getPaymentStatus(p))}`}>
+                            {getStatusLabel(getPaymentStatus(p))}
+                          </span>
+                          <span className="font-medium text-slate-200">R$ {Number(p.amount ?? 0).toFixed(2)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         ))}
       </div>
-      {historyOpenFor && (
-        <div className="mt-4 border border-slate-800 rounded p-3 bg-slate-900/70">
-          <h3 className="font-semibold mb-2">Histórico de pagamentos</h3>
-          <div className="space-y-1 text-sm">
-            {(paymentsByStudent[historyOpenFor] || [])
-              .sort((a: any, b: any) => String(b.start_date).localeCompare(String(a.start_date)))
-              .map((p: any) => (
-                <div key={p.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 border-b border-slate-800 pb-1">
-                  <span>{String(p.start_date || '').slice(0,7)} • Venc: {p.end_date || '-'}</span>
-                  <span>{getStatusLabel(getPaymentStatus(p))} • R$ {Number(p.amount ?? 0).toFixed(2)}</span>
-                </div>
-              ))}
-          </div>
-        </div>
-      )}
     </div>
   )
 }
