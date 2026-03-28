@@ -152,7 +152,7 @@ async function findAdminProfileByUserId(supabase, userId) {
 
   if (error || !data) return null
   const role = String(data.role || '').toLowerCase()
-  if (role && role !== 'admin') return null
+  if (!role || role !== 'admin') return null
   return data
 }
 
@@ -416,12 +416,12 @@ app.post('/api/payments/reconcile', async (req, res) => {
       const due = p.end_date ? new Date(p.end_date).getTime() : null
       if (!due) continue
       const graceEnd = due + 5 * 24 * 60 * 60 * 1000
-      if (now > graceEnd && p.status !== 'late') {
-        updates.push({ id: p.id, status: 'late' })
+      if (now > graceEnd && p.status !== 'delinquent') {
+        updates.push({ id: p.id, status: 'delinquent' })
       }
     }
     for (const u of updates) {
-      await pool.query('UPDATE payments SET status = $1::payment_status WHERE id = $2', ['late', u.id])
+      await pool.query('UPDATE payments SET status = $1::payment_status WHERE id = $2', ['delinquent', u.id])
     }
     res.json({ updated: updates.length })
   } catch (e) {
@@ -498,7 +498,7 @@ app.get('/api/payments/byMonth', async (req, res) => {
       return
     }
     const { start, end } = monthBounds(month)
-    const listRes = await pool.query('SELECT * FROM payments WHERE start_date BETWEEN $1::date AND $2::date ORDER BY end_date DESC NULLS LAST', [start, end])
+    const listRes = await pool.query('SELECT * FROM payments WHERE start_date <= $2::date AND end_date >= $1::date ORDER BY end_date DESC NULLS LAST', [start, end])
     const rows = listRes.rows || []
     const map = {}
     for (const p of rows) {

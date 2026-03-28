@@ -15,13 +15,19 @@ function getCurrentMonthRange() {
 
 function computePaymentStatus(payment: any, today = new Date()) {
   if (!payment) return 'pending'
-  if (payment.status === 'paid') return 'paid'
+  
   const due = payment.end_date ? new Date(payment.end_date) : null
-  if (!due) return 'pending'
+  if (!due) return payment.status === 'paid' ? 'paid' : 'pending'
+  
+  // Se já foi pago, mantém como pago (historético)
+  if (payment.status === 'paid') return 'paid'
+  
   const diffDays = Math.floor((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24))
-  if (diffDays < 0) return 'pending'
-  if (diffDays <= 5) return 'late'
-  return 'delinquent'
+  
+  // Verificar vencimento para não-pagos
+  if (diffDays < 0) return 'pending'  // Ainda tem tempo
+  if (diffDays <= 5) return 'late'     // Venceu há até 5 dias
+  return 'delinquent'                  // Venceu há mais de 5 dias
 }
 
 export default async function handler(req: any, res: any) {
@@ -84,22 +90,77 @@ export default async function handler(req: any, res: any) {
 
     // validar status financeiro com base na mensalidade do mês atual
     const { start, end } = getCurrentMonthRange()
-    const { data: payments, error: payError } = await supabase
+    let { data: payments, error: payError } = await supabase
       .from('payments')
       .select('*')
       .eq('student_id', sid)
-      .gte('start_date', start)
-      .lte('end_date', end)
+      .lte('start_date', end)    // Payment começou até o final do mês
+      .gte('end_date', start)    // Payment termina a partir do início do mês
+      .order('start_date', { ascending: false })  // Pagamentos mais recentes primeiro
 
     if (payError) {
       res.status(500).json({ error: payError.message })
       return
     }
 
-    const payment = (payments && payments[0]) || null
+    // Se não há pagamento para este mês, criar automaticamente
+    if (!payments || payments.length === 0) {
+      const monthStart = start
+      const lastDay = new Date(new Date(end).getFullYear(), new Date(end).getMonth() + 1, 0).getDate()
+      const monthEnd = `${start.slice(0, 7)}-${String(lastDay).padStart(2, '0')}`
+      
+      const { error: createErr } = await supabase
+        .from('payments')
+        .insert([{
+          organization_id: student.organization_id,
+          student_id: sid,
+          status: 'pending',
+          amount: 100,
+          start_date: monthStart,
+          end_date: monthEnd,
+        }])
+
+      if (createErr) {
+        console.error('[CHECKIN] Erro ao criar pagamento automaticamente:', createErr.message)
+      } else {
+        // Buscar novamente após criar
+        const { data: newPayments } = await supabase
+          .from('payments')
+          .select('*')
+          .eq('student_id', sid)
+          .lte('start_date', end)
+          .gte('end_date', start)
+          .order('start_date', { ascending: false })  // Pagamentos mais recentes primeiro
+        payments = newPayments || []
+      }
+    }
+
+    // Priorizar pagamento pago do mês atual; entre múltiplos, paid > outros
+    const currentMonthStr = start.slice(0, 7)
+    const currentMonthPayments = (payments || []).filter((p: any) =>
+      (p.start_date || '').slice(0, 7) === currentMonthStr
+    )
+    let payment: any = null
+    if (currentMonthPayments.length > 0) {
+      payment = currentMonthPayments.find((p: any) => p.status === 'paid') || currentMonthPayments[0]
+    } else if (payments && payments.length > 0) {
+      payment = payments[0]
+    }
     const status = computePaymentStatus(payment)
 
+    console.log(`[CHECKIN] Status computado: ${status}`)
+    if (payment) {
+      console.log(`[CHECKIN] Pagamento:`, {
+        id: payment.id,
+        status: payment.status,
+        start_date: payment.start_date,
+        end_date: payment.end_date,
+      })
+    }
+
+    // Bloqueio APENAS se delinquent (NÃO bloqueiar por 'late' ou 'pending')
     if (status === 'delinquent') {
+      console.log(`[CHECKIN] ❌ BLOQUEANDO - Status delinquent`)
       res.status(403).json({
         error: 'Acesso bloqueado. Favor passar na recepção.',
         code: 'blocked',
@@ -107,6 +168,8 @@ export default async function handler(req: any, res: any) {
       })
       return
     }
+
+    console.log(`[CHECKIN] ✅ Autorizado - Status: ${status}`)
 
     // registrar presença
     const row: any = { student_id: sid }

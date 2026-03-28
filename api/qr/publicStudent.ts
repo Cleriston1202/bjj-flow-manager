@@ -15,13 +15,19 @@ function getCurrentMonthRange() {
 
 function computePaymentStatus(payment: any, today = new Date()) {
   if (!payment) return 'pending'
-  if (payment.status === 'paid') return 'paid'
+  
   const due = payment.end_date ? new Date(payment.end_date) : null
-  if (!due) return 'pending'
+  if (!due) return payment.status === 'paid' ? 'paid' : 'pending'
+  
+  // Se já foi pago, mantém como pago (historético)
+  if (payment.status === 'paid') return 'paid'
+  
   const diffDays = Math.floor((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24))
-  if (diffDays < 0) return 'pending'
-  if (diffDays <= 5) return 'late'
-  return 'delinquent'
+  
+  // Verificar vencimento para não-pagos
+  if (diffDays < 0) return 'pending'  // Ainda tem tempo
+  if (diffDays <= 5) return 'late'     // Venceu há até 5 dias
+  return 'delinquent'                  // Venceu há mais de 5 dias
 }
 
 function getMonthPayment(payments: any[], month: string) {
@@ -151,8 +157,8 @@ export default async function handler(req: any, res: any) {
       .from('payments')
       .select('*')
       .eq('student_id', studentId)
-      .gte('start_date', start)
-      .lte('end_date', end)
+      .lte('start_date', end)    // Payment começou até o final do mês
+      .gte('end_date', start)    // Payment termina a partir do início do mês
 
     if (payErr) {
       res.status(500).json({ error: 'Erro ao carregar status financeiro.' })

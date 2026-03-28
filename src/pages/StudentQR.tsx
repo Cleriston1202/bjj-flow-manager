@@ -15,17 +15,6 @@ function getCurrentMonthRange() {
   return { start, end }
 }
 
-function computePaymentStatus(payment: any, today = new Date()) {
-  if (!payment) return 'pending'
-  if (payment.status === 'paid') return 'paid'
-  const due = payment.end_date ? new Date(payment.end_date) : null
-  if (!due) return 'pending'
-  const diffDays = Math.floor((today.getTime() - due.getTime()) / (1000 * 60 * 60 * 24))
-  if (diffDays < 0) return 'pending'
-  if (diffDays <= 5) return 'late'
-  return 'delinquent'
-}
-
 function statusLabel(status: string) {
   switch (status) {
     case 'paid': return 'Em dia'
@@ -76,7 +65,7 @@ export default function StudentQR() {
   const { studentId } = useParams<{ studentId: string }>()
   const [searchParams] = useSearchParams()
   const token = searchParams.get('t') || ''
-  const [loading, setLoading] = useState(false)
+  const [, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [student, setStudent] = useState<any | null>(null)
   const [classesThisMonth, setClassesThisMonth] = useState(0)
@@ -165,7 +154,7 @@ export default function StudentQR() {
   const statusClass = statusColor(paymentStatus)
 
   const { start } = getCurrentMonthRange()
-  const monthLabel = new Date(start).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+  const monthLabel = new Date(start + 'T00:00:00').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white flex justify-center px-4 py-8">
