@@ -3,7 +3,7 @@ import { supabase, handleSupabaseAuthError } from '../lib/supabaseClient'
 import { useAuth } from '../lib/AuthContext'
 import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription } from '@radix-ui/react-dialog'
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@radix-ui/react-dropdown-menu'
-import { BadgeDollarSign, Loader2, User, CreditCard, Banknote, AlertCircle, FileText, FileSpreadsheet, Bell } from 'lucide-react'
+import { BadgeDollarSign, Loader2, User, CreditCard, Banknote, AlertCircle, FileText, FileSpreadsheet, Bell, ChevronDown, ChevronUp, Clock, Send, RefreshCw } from 'lucide-react'
 
 // Utilitário para obter o mês atual em yyyy-mm
 function getCurrentMonth() {
@@ -54,12 +54,23 @@ function isStudentActive(student: any) {
 }
 
 function getEnrollmentDueDay(student: any) {
-  const enrollmentIso = student?.created_at || student?.belt_since
-  const enrollmentDate = enrollmentIso ? new Date(enrollmentIso) : null
-  const enrollmentDay = enrollmentDate && !Number.isNaN(enrollmentDate.getTime()) ? enrollmentDate.getDate() : null
-  if (enrollmentDay && enrollmentDay >= 1 && enrollmentDay <= 31) return enrollmentDay
+  // 1. Dia configurado manualmente tem prioridade
   const configuredDueDay = Number(student?.contact?.due_day)
   if (configuredDueDay >= 1 && configuredDueDay <= 31) return configuredDueDay
+
+  // 2. Dia do cadastro
+  const createdAt = student?.created_at
+  console.log('[dueDay]', student?.full_name, '| created_at:', createdAt)
+  if (createdAt) {
+    const d = new Date(createdAt)
+    if (!Number.isNaN(d.getTime())) {
+      const day = d.getDate()
+      console.log('[dueDay] → dia calculado:', day)
+      if (day >= 1 && day <= 31) return day
+    }
+  }
+
+  console.warn('[dueDay] created_at ausente ou inválido para:', student?.full_name, '— usando fallback 10')
   return 10
 }
 
@@ -75,6 +86,30 @@ function getMonthPayment(payments: any[], month: string) {
     return tb - ta
   })
   return ordered[0]
+}
+
+// ── Automação de Cobrança ──────────────────────────────────────────────────
+
+function daysUntilDue(payment: any): number | null {
+  if (!payment?.end_date) return null
+  const due = new Date(payment.end_date + 'T00:00:00')
+  return Math.floor((due.getTime() - new Date().setHours(0,0,0,0)) / (1000 * 60 * 60 * 24))
+}
+
+function daysSinceLastReminder(studentId: string, month: string): number {
+  const key = `reminder_${studentId}_${month}`
+  const last = localStorage.getItem(key)
+  if (!last) return Infinity
+  return Math.floor((Date.now() - new Date(last).getTime()) / (1000 * 60 * 60 * 24))
+}
+
+function markReminderSent(studentId: string, month: string) {
+  localStorage.setItem(`reminder_${studentId}_${month}`, new Date().toISOString())
+}
+
+function buildWhatsAppUrl(phone: string, text: string) {
+  const digits = phone.replace(/\D+/g, '')
+  return `https://wa.me/${digits}?text=${encodeURIComponent(text)}`
 }
 
 const paymentMethods = [
@@ -100,6 +135,10 @@ export default function Finance() {
   const [historyData, setHistoryData] = useState<Record<string, any[]>>({})
   const [historyLoading, setHistoryLoading] = useState<string | null>(null)
   const [sendingReminder, setSendingReminder] = useState(false)
+  const [automationOpen, setAutomationOpen] = useState(false)
+  const [daysBefore, setDaysBefore] = useState(3)
+  const [recurringDays, setRecurringDays] = useState(7)
+  const [reminderSending, setReminderSending] = useState<string | null>(null)
   const { tenant, role } = useAuth()
 
   if (role !== 'admin') {
@@ -177,7 +216,7 @@ export default function Finance() {
     }
   }
 
-  // Geração automática de mensalidades pendentes para cada aluno ativo
+  // Efeito 1: cria mensalidades ausentes (protegido por ref para não duplicar)
   const ensuredMonthsRef = useRef<Record<string, boolean>>({})
   useEffect(() => {
     async function ensureMonthlyPayments() {
@@ -185,14 +224,13 @@ export default function Finance() {
       if (loading) return
       if (!Object.keys(students).length) return
       if (ensuredMonthsRef.current[selectedMonth]) return
-      const [yy, mm] = selectedMonth.split('-').map((v)=>Number(v))
+      const [yy, mm] = selectedMonth.split('-').map((v) => Number(v))
       const last = new Date(yy, mm, 0).getDate()
       const monthStart = `${selectedMonth}-01`
-      const paymentsForMonth = payments
       const toInsert: any[] = []
       for (const s of Object.values(students)) {
         if (!isStudentActive(s)) continue
-        const hasPayment = paymentsForMonth.some((p: any) => p.student_id === s.id)
+        const hasPayment = payments.some((p: any) => p.student_id === s.id)
         if (!hasPayment) {
           const dueDay = Math.max(1, Math.min(31, getEnrollmentDueDay(s)))
           const safeDue = Math.min(dueDay, last)
@@ -202,16 +240,14 @@ export default function Finance() {
             status: 'pending',
             amount: s.contact?.monthly_fee ?? s.monthly_fee ?? 100,
             start_date: monthStart,
-            end_date: `${selectedMonth}-${String(safeDue).padStart(2,'0')}`,
+            end_date: `${selectedMonth}-${String(safeDue).padStart(2, '0')}`,
           })
         }
       }
       if (toInsert.length) {
         const { error: insertErr } = await supabase.from('payments').insert(toInsert)
         if (insertErr) {
-          if (!handleSupabaseAuthError(insertErr)) {
-            console.error('Erro ao criar mensalidades pendentes', insertErr)
-          }
+          if (!handleSupabaseAuthError(insertErr)) console.error('Erro ao criar mensalidades', insertErr)
         } else {
           await load()
         }
@@ -221,6 +257,42 @@ export default function Finance() {
     ensureMonthlyPayments()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMonth, students, payments, loading, tenant])
+
+  // Efeito 2: corrige end_date de pagamentos pending com vencimento errado
+  // Roda toda vez que payments ou students mudam — sem ref, sem cache
+  const fixingRef = useRef(false)
+  useEffect(() => {
+    async function fixDueDates() {
+      if (!tenant || loading || fixingRef.current) return
+      if (!payments.length || !Object.keys(students).length) return
+      const [yy, mm] = selectedMonth.split('-').map((v) => Number(v))
+      const last = new Date(yy, mm, 0).getDate()
+      const toUpdate: { id: string; end_date: string }[] = []
+
+      for (const p of payments) {
+        if (p.status !== 'pending') continue
+        const s = students[p.student_id]
+        if (!s || !isStudentActive(s)) continue
+        const dueDay = Math.max(1, Math.min(31, getEnrollmentDueDay(s)))
+        const safeDue = Math.min(dueDay, last)
+        const expected = `${selectedMonth}-${String(safeDue).padStart(2, '0')}`
+        if (p.end_date !== expected) {
+          toUpdate.push({ id: p.id, end_date: expected })
+        }
+      }
+
+      if (!toUpdate.length) return
+      console.log('[fixDueDates] Corrigindo', toUpdate.length, 'vencimento(s):', toUpdate)
+      fixingRef.current = true
+      await Promise.all(
+        toUpdate.map((u) => supabase.from('payments').update({ end_date: u.end_date }).eq('id', u.id))
+      )
+      fixingRef.current = false
+      await load()
+    }
+    fixDueDates()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [payments, students, selectedMonth, tenant, loading])
 
   // Agrupar pagamentos por aluno
   const paymentsByStudent: Record<string, any[]> = {}
@@ -331,6 +403,82 @@ export default function Finance() {
     window.print()
   }
 
+  // Aviso antes do vencimento
+  async function sendPreDueReminders() {
+    setReminderSending('pre')
+    try {
+      const targets = rowsSorted.filter(r => {
+        if (r.status !== 'pending') return false
+        const d = daysUntilDue(r.payment)
+        return d !== null && d >= 0 && d <= daysBefore
+      })
+      let opened = 0
+      for (const row of targets) {
+        const phone = String(row.student?.contact?.whatsapp || row.student?.contact?.phone || '')
+        if (!phone.replace(/\D+/g, '')) continue
+        const d = daysUntilDue(row.payment)
+        const dueStr = row.payment?.end_date
+          ? new Date(row.payment.end_date + 'T00:00:00').toLocaleDateString('pt-BR')
+          : ''
+        const text = `Olá ${row.student.full_name}! Lembramos que sua mensalidade de ${selectedMonth} vence em ${d === 0 ? 'hoje' : `${d} dia(s)`} (${dueStr}). Valor: R$ ${Number(row.payment?.amount ?? 0).toFixed(2)}. Qualquer dúvida, estamos à disposição!`
+        const popup = window.open(buildWhatsAppUrl(phone, text), '_blank', 'noopener,noreferrer')
+        if (popup) { opened++; markReminderSent(row.student.id, selectedMonth) }
+      }
+      alert(targets.length === 0
+        ? `Nenhum aluno com vencimento nos próximos ${daysBefore} dia(s).`
+        : `Avisos de pré-vencimento abertos: ${opened}/${targets.length}.`)
+    } finally {
+      setReminderSending(null)
+    }
+  }
+
+  // Aviso após atraso
+  async function sendLateReminders() {
+    setReminderSending('late')
+    try {
+      const targets = rowsSorted.filter(r => r.status === 'late')
+      let opened = 0
+      for (const row of targets) {
+        const phone = String(row.student?.contact?.whatsapp || row.student?.contact?.phone || '')
+        if (!phone.replace(/\D+/g, '')) continue
+        const dueStr = row.payment?.end_date
+          ? new Date(row.payment.end_date + 'T00:00:00').toLocaleDateString('pt-BR')
+          : ''
+        const text = `Olá ${row.student.full_name}, sua mensalidade de ${selectedMonth} venceu em ${dueStr} e ainda está em aberto (R$ ${Number(row.payment?.amount ?? 0).toFixed(2)}). Regularize em até 5 dias para evitar bloqueio de acesso. Obrigado!`
+        const popup = window.open(buildWhatsAppUrl(phone, text), '_blank', 'noopener,noreferrer')
+        if (popup) { opened++; markReminderSent(row.student.id, selectedMonth) }
+      }
+      alert(targets.length === 0
+        ? 'Nenhum aluno em atraso (dentro da carência).'
+        : `Avisos de atraso abertos: ${opened}/${targets.length}.`)
+    } finally {
+      setReminderSending(null)
+    }
+  }
+
+  // Lembrete recorrente (inadimplentes)
+  async function sendRecurringReminders() {
+    setReminderSending('recurring')
+    try {
+      const targets = rowsSorted.filter(r =>
+        r.status === 'delinquent' && daysSinceLastReminder(r.student.id, selectedMonth) >= recurringDays
+      )
+      let opened = 0
+      for (const row of targets) {
+        const phone = String(row.student?.contact?.whatsapp || row.student?.contact?.phone || '')
+        if (!phone.replace(/\D+/g, '')) continue
+        const text = `Olá ${row.student.full_name}, notamos que sua mensalidade de ${selectedMonth} ainda está em aberto (R$ ${Number(row.payment?.amount ?? 0).toFixed(2)}). Por favor, regularize sua situação para continuar treinando. Estamos à disposição para combinar a melhor forma de pagamento!`
+        const popup = window.open(buildWhatsAppUrl(phone, text), '_blank', 'noopener,noreferrer')
+        if (popup) { opened++; markReminderSent(row.student.id, selectedMonth) }
+      }
+      alert(targets.length === 0
+        ? `Nenhum inadimplente elegível para lembrete (intervalo: ${recurringDays} dias).`
+        : `Lembretes recorrentes abertos: ${opened}/${targets.length}.`)
+    } finally {
+      setReminderSending(null)
+    }
+  }
+
   async function sendDueReminders() {
     try {
       setSendingReminder(true)
@@ -400,19 +548,141 @@ export default function Finance() {
       <div className="mb-4 p-3 rounded bg-red-50 border border-red-200 text-red-700">
         Total a receber dos inadimplentes: R$ {totalInadimplentes.toFixed(2)}
       </div>
+      {/* ── Automação de Cobrança ─────────────────────────────────────── */}
+      {(() => {
+        const preDueCount = rowsSorted.filter(r => {
+          if (r.status !== 'pending') return false
+          const d = daysUntilDue(r.payment)
+          return d !== null && d >= 0 && d <= daysBefore
+        }).length
+        const lateCount = rowsSorted.filter(r => r.status === 'late').length
+        const recurringCount = rowsSorted.filter(r =>
+          r.status === 'delinquent' && daysSinceLastReminder(r.student.id, selectedMonth) >= recurringDays
+        ).length
+        return (
+          <div className="mb-4 border border-slate-700 rounded-xl bg-slate-900/60">
+            <button
+              className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-slate-200 hover:bg-slate-800/50 rounded-xl"
+              onClick={() => setAutomationOpen(v => !v)}
+            >
+              <span className="flex items-center gap-2">
+                <Bell size={16} className="text-amber-400" />
+                Automação de Cobrança
+                {(preDueCount + lateCount + recurringCount) > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 rounded-full bg-amber-500 text-white text-xs font-bold">
+                    {preDueCount + lateCount + recurringCount}
+                  </span>
+                )}
+              </span>
+              {automationOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            </button>
+
+            {automationOpen && (
+              <div className="px-4 pb-4 grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-slate-800 pt-4">
+
+                {/* Aviso antes do vencimento */}
+                <div className="flex flex-col gap-3 p-3 rounded-lg border border-slate-700 bg-slate-950/50">
+                  <div className="flex items-center gap-2 font-semibold text-amber-300 text-sm">
+                    <Clock size={15} /> Aviso antes do vencimento
+                  </div>
+                  <p className="text-xs text-slate-400">Envia aviso aos alunos com vencimento próximo que ainda não pagaram.</p>
+                  <div className="flex items-center gap-2 text-sm">
+                    <label className="text-slate-400 whitespace-nowrap">Antecedência:</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={30}
+                      value={daysBefore}
+                      onChange={e => setDaysBefore(Math.max(1, Number(e.target.value)))}
+                      className="w-16 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-slate-100 text-sm"
+                    />
+                    <span className="text-slate-400">dias</span>
+                  </div>
+                  <div className="text-xs text-slate-500">{preDueCount} aluno(s) elegíveis</div>
+                  <button
+                    onClick={sendPreDueReminders}
+                    disabled={reminderSending === 'pre' || preDueCount === 0}
+                    className="mt-auto flex items-center justify-center gap-2 px-3 py-2 rounded bg-amber-600 hover:bg-amber-700 text-white text-sm disabled:opacity-50"
+                  >
+                    {reminderSending === 'pre' ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                    Enviar aviso
+                  </button>
+                </div>
+
+                {/* Aviso após atraso */}
+                <div className="flex flex-col gap-3 p-3 rounded-lg border border-slate-700 bg-slate-950/50">
+                  <div className="flex items-center gap-2 font-semibold text-orange-300 text-sm">
+                    <AlertCircle size={15} /> Aviso após atraso
+                  </div>
+                  <p className="text-xs text-slate-400">Envia cobrança aos alunos em atraso (vencimento há até 5 dias) com link de pagamento.</p>
+                  <div className="text-xs text-slate-500 mt-auto">{lateCount} aluno(s) em atraso</div>
+                  <button
+                    onClick={sendLateReminders}
+                    disabled={reminderSending === 'late' || lateCount === 0}
+                    className="flex items-center justify-center gap-2 px-3 py-2 rounded bg-orange-600 hover:bg-orange-700 text-white text-sm disabled:opacity-50"
+                  >
+                    {reminderSending === 'late' ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                    Enviar aviso de atraso
+                  </button>
+                </div>
+
+                {/* Lembrete recorrente */}
+                <div className="flex flex-col gap-3 p-3 rounded-lg border border-slate-700 bg-slate-950/50">
+                  <div className="flex items-center gap-2 font-semibold text-red-300 text-sm">
+                    <RefreshCw size={15} /> Lembrete recorrente
+                  </div>
+                  <p className="text-xs text-slate-400">Reenvia cobrança a inadimplentes respeitando um intervalo mínimo entre envios.</p>
+                  <div className="flex items-center gap-2 text-sm">
+                    <label className="text-slate-400 whitespace-nowrap">Intervalo:</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={30}
+                      value={recurringDays}
+                      onChange={e => setRecurringDays(Math.max(1, Number(e.target.value)))}
+                      className="w-16 bg-slate-800 border border-slate-600 rounded px-2 py-1 text-slate-100 text-sm"
+                    />
+                    <span className="text-slate-400">dias</span>
+                  </div>
+                  <div className="text-xs text-slate-500">{recurringCount} inadimplente(s) prontos para lembrete</div>
+                  <button
+                    onClick={sendRecurringReminders}
+                    disabled={reminderSending === 'recurring' || recurringCount === 0}
+                    className="mt-auto flex items-center justify-center gap-2 px-3 py-2 rounded bg-red-700 hover:bg-red-800 text-white text-sm disabled:opacity-50"
+                  >
+                    {reminderSending === 'recurring' ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+                    Enviar lembretes
+                  </button>
+                </div>
+
+              </div>
+            )}
+          </div>
+        )
+      })()}
+
       {loading && <div className="flex items-center gap-2 text-slate-400"><Loader2 className="animate-spin" /> Carregando...</div>}
       <div className="border border-slate-800 rounded divide-y divide-slate-800 bg-slate-900/60">
         {rowsToDisplay.map(({ student: s, payment, status, olderUnpaid }) => (
           <div key={s.id} className="flex flex-col">
             <div className="p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <div className="min-w-0">
-                <div className="font-semibold flex items-center gap-2">
+                <div className="font-semibold flex items-center gap-2 flex-wrap">
                   <User size={18} className="inline text-blue-600" /> {s.full_name}
                   {olderUnpaid > 0 && (
-                    <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded bg-red-200 text-red-800 text-xs">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-red-200 text-red-800 text-xs">
                       <AlertCircle size={14} /> {olderUnpaid} pendência(s)
                     </span>
                   )}
+                  {(() => {
+                    const d = daysSinceLastReminder(s.id, selectedMonth)
+                    if (d === Infinity) return null
+                    return (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-700 text-slate-300 text-xs">
+                        <Bell size={11} /> Avisado há {d === 0 ? 'hoje' : `${d}d`}
+                      </span>
+                    )
+                  })()}
                 </div>
                 <div className="text-sm text-slate-300 flex flex-wrap items-center gap-2 mt-1">
                   <span className={`inline-block px-2 py-0.5 rounded ${getStatusColor(status)}`}>{getStatusLabel(status)}</span>
