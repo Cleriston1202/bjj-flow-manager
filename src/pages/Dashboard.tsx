@@ -133,13 +133,32 @@ export default function Dashboard() {
         const sPayments = paymentsByStudent[s.id] || []
         const payment = getMonthPayment(sPayments, currentMonth)
         const status = getPaymentStatus(payment, nowDate)
-        if (status === 'pending') {
+        if (status === 'pending' || status === 'late') {
           pendingStudentIds.add(s.id)
         }
-        if (status === 'late' || status === 'delinquent') {
+        if (status === 'delinquent') {
           delinquentStudentIds.add(s.id)
         }
       }
+
+      // Incluir alunos com débitos inadimplentes de meses anteriores
+      const monthStart = `${currentMonth}-01`
+      const delinqCutoff = new Date(nowDate.getTime() - 5 * 24 * 60 * 60 * 1000)
+        .toISOString().slice(0, 10)
+      const { data: prevDelinqData } = await supabase
+        .from('payments')
+        .select('student_id')
+        .eq('organization_id', tenant.organizationId)
+        .lt('start_date', monthStart)
+        .neq('status', 'paid')
+        .lte('end_date', delinqCutoff)
+      for (const p of prevDelinqData || []) {
+        if (!p.student_id) continue
+        // dívida vencida em mês anterior → inadimplente independente do mês atual
+        delinquentStudentIds.add(p.student_id)
+        pendingStudentIds.delete(p.student_id)
+      }
+
       setLateCount(delinquentStudentIds.size)
       setPendingCount(pendingStudentIds.size)
 

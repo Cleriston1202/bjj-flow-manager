@@ -333,7 +333,8 @@ export default function Finance() {
     return { student: s, payment, status, olderUnpaid, olderDelinquent, amountBase }
   })
   const isEffectivelyDelinquent = (r: { status: string; student: { id: string } }) =>
-    r.status === 'delinquent' || (prevDelinquentIds.has(r.student.id) && r.status !== 'paid')
+    r.status === 'delinquent' ||
+    (prevDelinquentIds.has(r.student.id) && (r.status === 'late' || r.status === 'delinquent'))
   const rowsSorted = [...rows].sort((a, b) => {
     const order = (r: typeof rows[0]) => {
       if (isEffectivelyDelinquent(r)) return 0
@@ -354,6 +355,7 @@ export default function Finance() {
   const totalAbertoMes = rows.reduce((sum, r) => (r.status !== 'paid' ? sum + r.amountBase : sum), 0)
   const totalAtivos = allStudents.filter((s: any) => isStudentActive(s)).length
   const totalInadimplentesQtd = rows.filter((r) => isEffectivelyDelinquent(r)).length
+  const totalPendentesQtd = rows.filter((r) => r.status === 'pending' || r.status === 'late').length
 
   // Baixa manual
   async function handleManualPayment(payment: any) {
@@ -564,8 +566,20 @@ export default function Finance() {
           <div className="text-xl font-bold text-blue-300">{totalAtivos}</div>
         </div>
         <div className="p-3 rounded border border-slate-800 bg-slate-900/70">
-          <div className="text-xs text-slate-400">Alunos inadimplentes</div>
-          <div className="text-xl font-bold text-red-300">{totalInadimplentesQtd}</div>
+          <div className="text-xs text-slate-400">
+            {totalInadimplentesQtd > 0 && totalPendentesQtd > 0 ? 'Alunos inadimplentes / pendentes' : totalInadimplentesQtd > 0 ? 'Alunos inadimplentes' : totalPendentesQtd > 0 ? 'Alunos pendentes' : 'Alunos inadimplentes'}
+          </div>
+          <div className="flex items-center gap-3 mt-1">
+            {totalInadimplentesQtd > 0 && (
+              <span className="text-xl font-bold text-red-300">{totalInadimplentesQtd} <span className="text-xs font-normal text-red-400">inadimplentes</span></span>
+            )}
+            {totalPendentesQtd > 0 && (
+              <span className="text-xl font-bold text-amber-300">{totalPendentesQtd} <span className="text-xs font-normal text-amber-400">pendentes</span></span>
+            )}
+            {totalInadimplentesQtd === 0 && totalPendentesQtd === 0 && (
+              <span className="text-xl font-bold text-emerald-300">0</span>
+            )}
+          </div>
         </div>
       </div>
       <div className="mb-4 p-3 rounded bg-red-50 border border-red-200 text-red-700">
