@@ -13,7 +13,7 @@ function getCurrentMonthRange() {
   return { start, end }
 }
 
-function computePaymentStatus(payment: any, today = new Date()) {
+export function computePaymentStatus(payment: any, today = new Date()) {
   if (!payment) return 'pending'
   
   const due = payment.end_date ? new Date(payment.end_date) : null

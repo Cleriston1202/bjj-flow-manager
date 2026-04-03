@@ -122,6 +122,7 @@ export default function Finance() {
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth())
   const [students, setStudents] = useState<Record<string, any>>({})
   const [payments, setPayments] = useState<any[]>([])
+  const [prevDelinquentIds, setPrevDelinquentIds] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(false)
   const [query, setQuery] = useState('')
   const [onlyActive, setOnlyActive] = useState(true)
@@ -181,8 +182,8 @@ export default function Finance() {
         .from('payments')
         .select('*')
         .eq('organization_id', tenant.organizationId)
-        .lte('start_date', monthEnd)    // Payment começou até o final do mês
-        .gte('end_date', monthStart)    // Payment termina a partir do início do mês
+        .lte('start_date', monthEnd)
+        .gte('end_date', monthStart)
       if (pErr) {
         if (!handleSupabaseAuthError(pErr)) {
           console.error('Erro ao carregar pagamentos', pErr)
@@ -190,6 +191,18 @@ export default function Finance() {
         return
       }
       setPayments(Array.isArray(pdata) ? pdata : [])
+
+      // Query dedicada: alunos com débitos em aberto de meses anteriores
+      const delinqCutoff = new Date(new Date().getTime() - 5 * 24 * 60 * 60 * 1000)
+        .toISOString().slice(0, 10)
+      const { data: prevDelinqData } = await supabase
+        .from('payments')
+        .select('student_id')
+        .eq('organization_id', tenant.organizationId)
+        .lt('start_date', monthStart)   // qualquer mês anterior
+        .neq('status', 'paid')
+        .lte('end_date', delinqCutoff)  // vencido há mais de 5 dias
+      setPrevDelinquentIds(new Set((prevDelinqData || []).map((p: any) => p.student_id)))
     } catch (e) {
       console.error('Erro ao carregar dados financeiros', e)
     } finally {
@@ -230,7 +243,7 @@ export default function Finance() {
       const toInsert: any[] = []
       for (const s of Object.values(students)) {
         if (!isStudentActive(s)) continue
-        const hasPayment = payments.some((p: any) => p.student_id === s.id)
+        const hasPayment = payments.some((p: any) => p.student_id === s.id && (p.start_date || '').slice(0, 7) === selectedMonth)
         if (!hasPayment) {
           const dueDay = Math.max(1, Math.min(31, getEnrollmentDueDay(s)))
           const safeDue = Math.min(dueDay, last)
@@ -271,6 +284,7 @@ export default function Finance() {
 
       for (const p of payments) {
         if (p.status !== 'pending') continue
+        if ((p.start_date || '').slice(0, 7) !== selectedMonth) continue  // não alterar meses anteriores
         const s = students[p.student_id]
         if (!s || !isStudentActive(s)) continue
         const dueDay = Math.max(1, Math.min(31, getEnrollmentDueDay(s)))
@@ -310,27 +324,36 @@ export default function Finance() {
     const allPayments = paymentsByStudent[s.id] || []
     // Pega o pagamento mais recente do mês selecionado
     const payment = getMonthPayment(allPayments, selectedMonth)
-    // Conta quantos meses anteriores estão em aberto
-    const olderUnpaid = allPayments.filter((p: any) => getPaymentStatus(p) !== 'paid' && (p.start_date || '').slice(0,7) < selectedMonth).length
+    // Conta quantos meses anteriores estão em aberto / inadimplentes
+    const olderPastPayments = allPayments.filter((p: any) => (p.start_date || '').slice(0, 7) < selectedMonth)
+    const olderUnpaid = olderPastPayments.filter((p: any) => getPaymentStatus(p) !== 'paid').length
+    const olderDelinquent = olderPastPayments.filter((p: any) => getPaymentStatus(p) === 'delinquent').length
     const status = getPaymentStatus(payment)
     const amountBase = Number(payment?.amount ?? s.contact?.monthly_fee ?? s.monthly_fee ?? 0)
-    return { student: s, payment, status, olderUnpaid, amountBase }
+    return { student: s, payment, status, olderUnpaid, olderDelinquent, amountBase }
   })
+  const isEffectivelyDelinquent = (r: { status: string; student: { id: string } }) =>
+    r.status === 'delinquent' || (prevDelinquentIds.has(r.student.id) && r.status !== 'paid')
   const rowsSorted = [...rows].sort((a, b) => {
-    const order = (st: string) => st === 'delinquent' ? 0 : st === 'late' ? 1 : st === 'pending' ? 2 : 3
-    const oa = order(a.status)
-    const ob = order(b.status)
+    const order = (r: typeof rows[0]) => {
+      if (isEffectivelyDelinquent(r)) return 0
+      if (r.status === 'late') return 1
+      if (r.status === 'pending') return 2
+      return 3
+    }
+    const oa = order(a)
+    const ob = order(b)
     if (oa !== ob) return oa - ob
     const an = (a.student.full_name || '').toLowerCase()
     const bn = (b.student.full_name || '').toLowerCase()
     return an.localeCompare(bn)
   })
-  const rowsToDisplay = onlyDelinquent ? rowsSorted.filter(r => r.status === 'delinquent') : rowsSorted
-  const totalInadimplentes = rows.filter(r => r.status === 'delinquent').reduce((sum, r) => sum + r.amountBase, 0)
+  const rowsToDisplay = onlyDelinquent ? rowsSorted.filter(r => isEffectivelyDelinquent(r)) : rowsSorted
+  const totalInadimplentes = rows.filter(r => isEffectivelyDelinquent(r)).reduce((sum, r) => sum + r.amountBase, 0)
   const totalRecebidoMes = rows.reduce((sum, r) => (r.status === 'paid' ? sum + r.amountBase : sum), 0)
   const totalAbertoMes = rows.reduce((sum, r) => (r.status !== 'paid' ? sum + r.amountBase : sum), 0)
   const totalAtivos = allStudents.filter((s: any) => isStudentActive(s)).length
-  const totalInadimplentesQtd = rows.filter((r) => r.status === 'delinquent').length
+  const totalInadimplentesQtd = rows.filter((r) => isEffectivelyDelinquent(r)).length
 
   // Baixa manual
   async function handleManualPayment(payment: any) {
@@ -669,7 +692,7 @@ export default function Finance() {
               <div className="min-w-0">
                 <div className="font-semibold flex items-center gap-2 flex-wrap">
                   <User size={18} className="inline text-blue-600" /> {s.full_name}
-                  {olderUnpaid > 0 && (
+                  {olderUnpaid > 0 && status !== 'paid' && (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-red-200 text-red-800 text-xs">
                       <AlertCircle size={14} /> {olderUnpaid} pendência(s)
                     </span>
