@@ -128,11 +128,13 @@ export default function Dashboard() {
 
       const delinquentStudentIds = new Set<string>()
       const pendingStudentIds = new Set<string>()
+      const currentStatusMap = new Map<string, string>()
       for (const s of studentsList) {
         if (!isStudentActive(s)) continue
         const sPayments = paymentsByStudent[s.id] || []
         const payment = getMonthPayment(sPayments, currentMonth)
         const status = getPaymentStatus(payment, nowDate)
+        currentStatusMap.set(s.id, status)
         if (status === 'pending' || status === 'late') {
           pendingStudentIds.add(s.id)
         }
@@ -142,6 +144,8 @@ export default function Dashboard() {
       }
 
       // Incluir alunos com débitos inadimplentes de meses anteriores
+      // Alinhado com Finance.tsx (isEffectivelyDelinquent): só conta como inadimplente
+      // se o status atual também for 'late' ou 'delinquent', nunca 'pending'
       const monthStart = `${currentMonth}-01`
       const delinqCutoff = new Date(nowDate.getTime() - 5 * 24 * 60 * 60 * 1000)
         .toISOString().slice(0, 10)
@@ -154,9 +158,12 @@ export default function Dashboard() {
         .lte('end_date', delinqCutoff)
       for (const p of prevDelinqData || []) {
         if (!p.student_id) continue
-        // dívida vencida em mês anterior → inadimplente independente do mês atual
-        delinquentStudentIds.add(p.student_id)
-        pendingStudentIds.delete(p.student_id)
+        const cs = currentStatusMap.get(p.student_id)
+        // Só mover para inadimplente se o status atual for 'late' ou 'delinquent'
+        if (cs === 'late' || cs === 'delinquent') {
+          delinquentStudentIds.add(p.student_id)
+          pendingStudentIds.delete(p.student_id)
+        }
       }
 
       setLateCount(delinquentStudentIds.size)
