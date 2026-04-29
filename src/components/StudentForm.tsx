@@ -1,6 +1,16 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { useAuth } from '../lib/AuthContext'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 export interface Student {
   id?: string
@@ -63,7 +73,7 @@ export default function StudentForm({
   const [preview, setPreview] = useState<string | null>(form.photo_url || null)
   const { tenant } = useAuth()
 
-  useEffect(()=>{
+  useEffect(() => {
     setPreview(form.photo_url || null)
   }, [form.photo_url])
 
@@ -75,7 +85,6 @@ export default function StudentForm({
       if (!tenant) {
         throw new Error('Tenant não carregado. Faça login novamente.')
       }
-      // if a file is selected, upload it to Supabase Storage first
       if (file) {
         const fileExt = file.name.split('.').pop()
         const filePath = `public/avatars/${form.full_name.replace(/\s+/g, '_')}_${Date.now()}.${fileExt}`
@@ -98,7 +107,6 @@ export default function StudentForm({
         if (error) throw error
         onSaved(form)
       } else {
-        // Limite de plano: free até 10 alunos
         if (tenant.plan === 'free') {
           const { count } = await supabase
             .from('students')
@@ -130,179 +138,184 @@ export default function StudentForm({
   }
 
   return (
-    <form onSubmit={handleSave} className="p-4 border border-slate-800 rounded-xl bg-slate-900/80">
-      {error && <div className="text-red-500 mb-2 text-sm">{error}</div>}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-slate-50">
-        <div>
-          <label className="block text-sm text-slate-200">Nome</label>
-          <input
-            className="border border-slate-700 bg-slate-950 text-slate-50 placeholder:text-slate-500 p-2 rounded w-full"
+    <form onSubmit={handleSave} className="p-4 border border-border rounded-xl bg-card">
+      {error && <div className="text-destructive mb-3 text-sm">{error}</div>}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-1">
+          <Label htmlFor="full_name">Nome</Label>
+          <Input
+            id="full_name"
             value={form.full_name}
-            onChange={(e)=>setForm({...form, full_name: e.target.value})}
+            onChange={(e) => setForm({ ...form, full_name: e.target.value })}
             required
           />
         </div>
-        <div>
-          <label className="block text-sm text-slate-200">Data de Nascimento</label>
-          <input
+        <div className="space-y-1">
+          <Label htmlFor="dob">Data de Nascimento</Label>
+          <Input
+            id="dob"
             type="date"
-            className="border border-slate-700 bg-slate-950 text-slate-50 placeholder:text-slate-500 p-2 rounded w-full"
             value={form.dob || ''}
-            onChange={(e)=>setForm({...form, dob: e.target.value})}
+            onChange={(e) => setForm({ ...form, dob: e.target.value })}
           />
         </div>
-        <div>
-          <label className="block text-sm text-slate-200">E-mail</label>
-          <input
-            className="border border-slate-700 bg-slate-950 text-slate-50 placeholder:text-slate-500 p-2 rounded w-full"
+        <div className="space-y-1">
+          <Label htmlFor="email">E-mail</Label>
+          <Input
+            id="email"
             value={form.contact?.email || ''}
-            onChange={(e)=>setForm({...form, contact: {...form.contact, email: e.target.value}})}
+            onChange={(e) => setForm({ ...form, contact: { ...form.contact, email: e.target.value } })}
             required
           />
         </div>
-        <div>
-          <label className="block text-sm text-slate-200">Telefone</label>
-          <input
-            className="border border-slate-700 bg-slate-950 text-slate-50 placeholder:text-slate-500 p-2 rounded w-full"
+        <div className="space-y-1">
+          <Label htmlFor="phone">Telefone</Label>
+          <Input
+            id="phone"
             value={form.contact?.phone || ''}
-            onChange={(e)=>setForm({...form, contact: {...form.contact, phone: e.target.value}})}
+            onChange={(e) => setForm({ ...form, contact: { ...form.contact, phone: e.target.value } })}
             required
           />
         </div>
-        <div>
-          <label className="block text-sm text-slate-200">WhatsApp</label>
-          <input
-            className="border border-slate-700 bg-slate-950 text-slate-50 placeholder:text-slate-500 p-2 rounded w-full"
+        <div className="space-y-1">
+          <Label htmlFor="whatsapp">WhatsApp</Label>
+          <Input
+            id="whatsapp"
             value={form.contact?.whatsapp || ''}
-            onChange={(e)=>setForm({...form, contact: {...form.contact, whatsapp: e.target.value}})}
+            onChange={(e) => setForm({ ...form, contact: { ...form.contact, whatsapp: e.target.value } })}
           />
         </div>
-        <div>
-          <label className="block text-sm text-slate-200">CPF</label>
-          <input
-            className="border border-slate-700 bg-slate-950 text-slate-50 placeholder:text-slate-500 p-2 rounded w-full"
+        <div className="space-y-1">
+          <Label htmlFor="cpf">CPF</Label>
+          <Input
+            id="cpf"
             value={form.contact?.cpf || ''}
-            onChange={(e)=>setForm({...form, contact: {...form.contact, cpf: e.target.value}})}
+            onChange={(e) => setForm({ ...form, contact: { ...form.contact, cpf: e.target.value } })}
             placeholder="000.000.000-00"
             required
           />
         </div>
-        <div>
-          <label className="block text-sm text-slate-200">Plano</label>
-          <select
-            className="border border-slate-700 bg-slate-950 text-slate-50 p-2 rounded w-full"
+        <div className="space-y-1">
+          <Label>Plano</Label>
+          <Select
             value={form.contact?.plan || 'Mensal'}
-            onChange={(e)=>setForm({...form, contact: {...form.contact, plan: e.target.value as any}})}
+            onValueChange={(v) => setForm({ ...form, contact: { ...form.contact, plan: v as any } })}
           >
-            <option value="Mensal">Mensal</option>
-            <option value="Trimestral">Trimestral</option>
-            <option value="Anual">Anual</option>
-          </select>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Mensal">Mensal</SelectItem>
+              <SelectItem value="Trimestral">Trimestral</SelectItem>
+              <SelectItem value="Anual">Anual</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <div>
-          <label className="block text-sm text-slate-200">Valor da mensalidade (R$)</label>
-          <input
+        <div className="space-y-1">
+          <Label htmlFor="monthly_fee">Valor da mensalidade (R$)</Label>
+          <Input
+            id="monthly_fee"
             type="number"
             min={0}
             step="0.01"
-            className="border border-slate-700 bg-slate-950 text-slate-50 p-2 rounded w-full"
             value={form.contact?.monthly_fee ?? 100}
-            onChange={(e)=>setForm({...form, contact: {...form.contact, monthly_fee: Number(e.target.value)}})}
+            onChange={(e) => setForm({ ...form, contact: { ...form.contact, monthly_fee: Number(e.target.value) } })}
             required
           />
         </div>
-        <div>
-          <label className="block text-sm text-slate-200">Dia de vencimento</label>
-          <input
+        <div className="space-y-1">
+          <Label htmlFor="due_day">Dia de vencimento</Label>
+          <Input
+            id="due_day"
             type="number"
             min={1}
             max={31}
-            className="border border-slate-700 bg-slate-950 text-slate-50 p-2 rounded w-full"
             value={form.contact?.due_day ?? 10}
-            onChange={(e)=>setForm({...form, contact: {...form.contact, due_day: Number(e.target.value)}})}
+            onChange={(e) => setForm({ ...form, contact: { ...form.contact, due_day: Number(e.target.value) } })}
             required
           />
         </div>
-        <div>
-          <label className="block text-sm text-slate-200">Status</label>
-          <select
-            className="border border-slate-700 bg-slate-950 text-slate-50 p-2 rounded w-full"
+        <div className="space-y-1">
+          <Label>Status</Label>
+          <Select
             value={form.contact?.status || 'Ativo'}
-            onChange={(e)=>setForm({...form, contact: {...form.contact, status: e.target.value as any}, active: e.target.value !== 'Cancelado'})}
+            onValueChange={(v) => setForm({ ...form, contact: { ...form.contact, status: v as any }, active: v !== 'Cancelado' })}
           >
-            <option value="Ativo">Ativo</option>
-            <option value="Inadimplente">Inadimplente</option>
-            <option value="Cancelado">Cancelado</option>
-          </select>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Ativo">Ativo</SelectItem>
+              <SelectItem value="Inadimplente">Inadimplente</SelectItem>
+              <SelectItem value="Cancelado">Cancelado</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <div>
-          <label className="block text-sm text-slate-200">Modalidade</label>
-          <input
-            className="border border-slate-700 bg-slate-950 text-slate-50 p-2 rounded w-full"
+        <div className="space-y-1">
+          <Label htmlFor="modality">Modalidade</Label>
+          <Input
+            id="modality"
             value={form.contact?.modality || ''}
-            onChange={(e)=>setForm({...form, contact: {...form.contact, modality: e.target.value}})}
+            onChange={(e) => setForm({ ...form, contact: { ...form.contact, modality: e.target.value } })}
             placeholder="Ex: Jiu-Jitsu Kids"
             required
           />
         </div>
-        <div>
-          <label className="block text-sm text-slate-200">Faixa atual</label>
-          <select
-            className="border border-slate-700 bg-slate-950 text-slate-50 p-2 rounded w-full"
-            value={form.current_belt}
-            onChange={(e)=>setForm({...form, current_belt: e.target.value})}
+        <div className="space-y-1">
+          <Label>Faixa atual</Label>
+          <Select
+            value={form.current_belt || 'Branca'}
+            onValueChange={(v) => setForm({ ...form, current_belt: v })}
           >
-            <option>Branca</option>
-            <option>Azul</option>
-            <option>Roxa</option>
-            <option>Marrom</option>
-            <option>Preta</option>
-          </select>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Branca">Branca</SelectItem>
+              <SelectItem value="Azul">Azul</SelectItem>
+              <SelectItem value="Roxa">Roxa</SelectItem>
+              <SelectItem value="Marrom">Marrom</SelectItem>
+              <SelectItem value="Preta">Preta</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <div>
-          <label className="block text-sm text-slate-200">Grau</label>
-          <input
+        <div className="space-y-1">
+          <Label htmlFor="degree">Grau</Label>
+          <Input
+            id="degree"
             type="number"
             min={0}
             max={4}
-            className="border border-slate-700 bg-slate-950 text-slate-50 p-2 rounded w-full"
             value={form.current_degree ?? 0}
-            onChange={(e)=>setForm({...form, current_degree: Number(e.target.value)})}
+            onChange={(e) => setForm({ ...form, current_degree: Number(e.target.value) })}
           />
         </div>
-        <div className="md:col-span-2">
-          <label className="block text-sm text-slate-200">Foto (URL)</label>
-          <input
-            className="border border-slate-700 bg-slate-950 text-slate-50 placeholder:text-slate-500 p-2 rounded w-full mb-2"
+        <div className="md:col-span-2 space-y-1">
+          <Label htmlFor="photo_url">Foto (URL)</Label>
+          <Input
+            id="photo_url"
             value={form.photo_url || ''}
-            onChange={(e)=>setForm({...form, photo_url: e.target.value})}
+            onChange={(e) => setForm({ ...form, photo_url: e.target.value })}
+            className="mb-2"
           />
-          <div className="flex items-center gap-2">
-            <input type="file" accept="image/*" onChange={(e)=>{
+          <div className="flex items-center gap-3">
+            <input type="file" accept="image/*" onChange={(e) => {
               const f = e.target.files?.[0] || null
               setFile(f)
               if (f) setPreview(URL.createObjectURL(f))
             }} />
-            {preview && <img src={preview} alt="preview" className="h-16 w-16 object-cover rounded border border-slate-700" />}
+            {preview && <img src={preview} alt="preview" className="h-16 w-16 object-cover rounded border border-border" />}
           </div>
         </div>
       </div>
 
-      <div className="mt-4 flex gap-2">
-        <button
-          type="submit"
-          disabled={loading}
-          className="bg-primary text-white px-4 py-2 rounded shadow-sm disabled:opacity-60"
-        >
-          {loading? 'Salvando...' : 'Salvar'}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-4 py-2 border border-slate-700 rounded bg-slate-900 text-slate-100 hover:bg-slate-800"
-        >
+      <div className="mt-6 flex gap-2">
+        <Button type="submit" disabled={loading}>
+          {loading ? 'Salvando...' : 'Salvar'}
+        </Button>
+        <Button type="button" variant="outline" onClick={onCancel}>
           Cancelar
-        </button>
+        </Button>
       </div>
     </form>
   )

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx shadcn@latest add button input label select card badge separator toast --yes)",
+      "Bash(npm install:*)"
+    ]
+  }
+}

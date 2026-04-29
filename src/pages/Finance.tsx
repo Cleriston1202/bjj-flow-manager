@@ -821,7 +821,23 @@ export default function Finance() {
                   <div className="text-sm text-slate-500 py-2">Nenhum pagamento encontrado.</div>
                 ) : (
                   <div className="divide-y divide-slate-800">
-                    {(historyData[s.id] || []).map((p: any) => (
+                    {Object.values(
+                      (historyData[s.id] || []).reduce((acc: Record<string, any>, p: any) => {
+                        const month = String(p.start_date || '').slice(0, 7)
+                        const existing = acc[month]
+                        if (!existing) { acc[month] = p; return acc }
+                        // Prefere pago; em empate, o mais recente
+                        const existingPaid = existing.status === 'paid' ? 1 : 0
+                        const pPaid = p.status === 'paid' ? 1 : 0
+                        if (pPaid > existingPaid) { acc[month] = p; return acc }
+                        if (pPaid === existingPaid) {
+                          const ta = new Date(existing.paid_at || existing.created_at || 0).getTime()
+                          const tb = new Date(p.paid_at || p.created_at || 0).getTime()
+                          if (tb > ta) acc[month] = p
+                        }
+                        return acc
+                      }, {})
+                    ).map((p: any) => (
                       <div key={p.id} className="py-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-sm">
                         <span className="text-slate-300">
                           {String(p.start_date || '').slice(0, 7)}
@@ -843,6 +859,7 @@ export default function Finance() {
             )}
           </div>
         ))}
+
       </div>
     </div>
   )

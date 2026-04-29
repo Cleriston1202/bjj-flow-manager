@@ -4,30 +4,44 @@
 @tailwind components;
 @tailwind utilities;
 
-html, body, #root {
-  height: 100%;
-}
-
-body {
-  @apply bg-slate-950 text-slate-50 antialiased;
-  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+@layer base {
+  :root {
+    --background: 222 47% 4%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 7%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 47% 6%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 221 83% 31%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 221 83% 53%;
+    --radius: 0.5rem;
+  }
 }
 
 @layer base {
-  input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='range']):not([type='color']),
-  select,
-  textarea {
-    @apply bg-slate-900 border-slate-600 text-slate-100 placeholder:text-slate-400;
+  * {
+    @apply border-border;
   }
-
-  input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='range']):not([type='color']):focus,
-  select:focus,
-  textarea:focus {
-    @apply outline-none ring-2 ring-red-500/50 border-red-500;
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  html, body, #root {
+    height: 100%;
   }
 }
 
 .brand-header {
   background: linear-gradient(90deg, #020617 0%, #0b3d91 100%);
 }
-
